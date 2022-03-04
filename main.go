@@ -143,7 +143,7 @@ type NamedType struct {
 	Name string `json:"name"`
 	Type BasicType `json:"type"`
 }
-func isNamedTypeUnique(namedType NamedType, namedTypes []NamedType) bool {
+func (namedType NamedType) isUnique() bool {
 	for _, elem := range namedTypes {
 		if elem.Name == namedType.Name {
 			return false
@@ -185,8 +185,7 @@ func createNamedType(c *gin.Context) {
 				Name: name,
 				Type: typ,
 			}
-			ok = isNamedTypeUnique(namedType, namedTypes)
-			if ok {
+			if namedType.isUnique() {
 				namedTypes = append(namedTypes, namedType)
 				c.IndentedJSON(http.StatusCreated, namedType)
 			} else {
