@@ -1,11 +1,12 @@
 package main
 
 import (
-	//"fmt"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"bytes"
 	"encoding/json"
+	"time"
 )
 
 func main() {
@@ -37,8 +38,90 @@ func main() {
 	r.Run(host)
 }
 
-func getCollections(c *gin.Context) {}
-func createCollection(c *gin.Context) {}
+// NOTE: might become unmanageable, find alternative
+// TODO: nicer string formatting, this looks ugly rn
+func (data DataWrapper) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString(`{"time":"`)
+	buffer.WriteString(data.Time.String())
+	buffer.WriteString(`","type":"`)
+	buffer.WriteString(data.Type.String())
+	buffer.WriteString(`","value":"`)
+	switch data.Type {
+		case num:
+			buffer.WriteString(fmt.Sprintf("%.5f", data.Num)) 
+			// TODO: what precision do we need?
+		case str:
+			buffer.WriteString(data.Str)
+		default:
+			buffer.WriteString("unknown")
+
+	}
+	buffer.WriteString(`"}`)
+	return buffer.Bytes(), nil
+}
+func (data DataWrappers) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString("{")
+	first := true
+	for namedType, dataWrappers := range data {
+		if !first { buffer.WriteString(`,`) } else { first = false }
+		buffer.WriteString(`"`)
+		buffer.WriteString(namedType.Name)
+		buffer.WriteString(`":[`)
+		for _, dataWrapper := range dataWrappers {
+			bytes, err := dataWrapper.MarshalJSON()
+			if err != nil { return buffer.Bytes(), err }
+			buffer.Write(bytes)
+			buffer.WriteString(`,`)
+		}
+		buffer.WriteString(`]`)
+	}
+	buffer.WriteString(`}`)
+	return buffer.Bytes(), nil
+}
+type DataWrappers map[NamedType][]DataWrapper
+type DataWrapper struct {
+	// TODO: try tinytime, we don't need nanosecond precision...
+	Time time.Time `json:"time"`
+	Type BasicType `json:"type"`
+	Num float64 `json:"num"`
+	Str string `json:"str"`
+}
+type Collection struct {
+	Name string `json:"name"`
+	Data DataWrappers `json:"type"`
+}
+var collections = make([]Collection, 0)
+func getCollections(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, collections)
+}
+type CollectionRequestBody struct {
+	Name string `json:"name"`
+	NamedTypes []string `json:"named_types"`
+}
+func createCollection(c *gin.Context) {
+	var body CollectionRequestBody
+	if err := c.BindJSON(&body); err == nil  {
+		collection := Collection {
+			Name: body.Name,
+			Data: make(DataWrappers),
+		}
+		for _, name := range body.NamedTypes {
+			namedType, ok := nameToNamedType(name, namedTypes)
+			if ok {
+				collection.Data[namedType] = make([]DataWrapper, 0)
+			} else {
+				// TODO: completely fail, ignore or smt else when bad named type?
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Non-existent named type!"})
+				return
+			}
+		}
+		collections = append(collections, collection)
+		c.IndentedJSON(http.StatusOK, collection)
+	} else {
+		fmt.Println(err)
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
+	}
+}
 func getCollection(c *gin.Context) {}
 func addToCollection(c *gin.Context) {}
 func deleteCollection(c *gin.Context) {}
@@ -79,7 +162,6 @@ func removeNamedType(namedType NamedType) {
 	namedTypes = namedTypes[:i]
 }
 var namedTypes = make([]NamedType, 0)
-
 func getNamedTypes(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, namedTypes)
 }
