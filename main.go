@@ -27,8 +27,8 @@ func main() {
 		{
 			typ.GET("/named", getNamedTypes)
 			typ.POST("/named", createNamedType)
-			typ.GET("/:id", getNamedType)
-			typ.DELETE("/:id", deleteNamedType)
+			typ.GET("/:name", getNamedType)
+			typ.DELETE("/:name", deleteNamedType)
 			typ.GET("/basic", getBasicTypes)
 		}
 	}
@@ -57,6 +57,17 @@ func isNamedTypeUnique(namedType NamedType, namedTypes []NamedType) bool {
 	}
 	return true
 }
+func nameToNamedType(name string, namedTypes []NamedType) (namedType NamedType, ok bool) {
+	for _, elem := range namedTypes {
+		if elem.Name == name {
+			namedType = elem
+			ok = true
+			return
+		}
+	}
+	ok = false
+	return
+}
 var namedTypes = make([]NamedType, 0)
 
 func getNamedTypes(c *gin.Context) {
@@ -74,7 +85,7 @@ func createNamedType(c *gin.Context) {
 			ok = isNamedTypeUnique(namedType, namedTypes)
 			if ok {
 				namedTypes = append(namedTypes, namedType)
-				c.IndentedJSON(http.StatusOK, namedType)
+				c.IndentedJSON(http.StatusCreated, namedType)
 			} else {
 				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
 			}
@@ -85,7 +96,19 @@ func createNamedType(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Unknown basic type!"})
 	}
 }
-func getNamedType(c *gin.Context) {}
+func getNamedType(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		namedType, ok := nameToNamedType(name, namedTypes)
+		if ok {
+			c.IndentedJSON(http.StatusOK, namedType)
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
 func deleteNamedType(c *gin.Context) {}
 
 type BasicType int
