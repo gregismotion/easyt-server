@@ -1,6 +1,6 @@
 collection:
-	name
-	data: []map[NamedType][]*type from NamedType*
+	name: unique
+	data
 NamedType:
 	name: unique
 	type: of data
