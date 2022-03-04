@@ -2,7 +2,7 @@ collection:
 	name
 	data: []map[NamedType][]*type from NamedType*
 NamedType:
-	name
+	name: unique
 	type: of data
 
 Basic Types:
