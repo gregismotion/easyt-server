@@ -68,6 +68,16 @@ func nameToNamedType(name string, namedTypes []NamedType) (namedType NamedType, 
 	ok = false
 	return
 }
+func removeNamedType(namedType NamedType) {
+	i := 0
+	for _, elem := range namedTypes {
+		if elem != namedType {
+			namedTypes[i] = elem
+			i++
+		}
+	}
+	namedTypes = namedTypes[:i]
+}
 var namedTypes = make([]NamedType, 0)
 
 func getNamedTypes(c *gin.Context) {
@@ -109,7 +119,21 @@ func getNamedType(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
 	}
 }
-func deleteNamedType(c *gin.Context) {}
+func deleteNamedType(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		namedType, ok := nameToNamedType(name, namedTypes)
+		if ok {
+			removeNamedType(namedType)
+			// NOTE: maybe some message would be appropiate? consult the do- oh wait
+			c.String(http.StatusOK, "")
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
 
 type BasicType int
 const (
