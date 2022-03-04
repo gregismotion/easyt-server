@@ -90,6 +90,14 @@ type Collection struct {
 	Name string `json:"name"`
 	Data DataWrappers `json:"type"`
 }
+func (collection Collection) isUnique() bool {
+	for _, elem := range collections {
+		if elem.Name == collection.Name {
+			return false
+		}
+	}
+	return true
+}
 var collections = make([]Collection, 0)
 func getCollections(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, collections)
@@ -105,20 +113,23 @@ func createCollection(c *gin.Context) {
 			Name: body.Name,
 			Data: make(DataWrappers),
 		}
-		for _, name := range body.NamedTypes {
-			namedType, ok := nameToNamedType(name, namedTypes)
-			if ok {
-				collection.Data[namedType] = make([]DataWrapper, 0)
-			} else {
-				// TODO: completely fail, ignore or smt else when bad named type?
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Non-existent named type!"})
-				return
+		if collection.isUnique() {
+			for _, name := range body.NamedTypes {
+				namedType, ok := nameToNamedType(name, namedTypes)
+				if ok {
+					collection.Data[namedType] = make([]DataWrapper, 0)
+				} else {
+					// TODO: completely fail, ignore or smt else when bad named type?
+					c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Non-existent named type!"})
+					return
+				}
 			}
+			collections = append(collections, collection)
+			c.IndentedJSON(http.StatusOK, collection)
+		} else {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
 		}
-		collections = append(collections, collection)
-		c.IndentedJSON(http.StatusOK, collection)
 	} else {
-		fmt.Println(err)
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
 	}
 }
