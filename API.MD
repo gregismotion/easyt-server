@@ -28,8 +28,8 @@ api:
 	type/named:
 		GET
 		POST: new type
-	type/basic:
-		GET
 	type/{id}:
 		GET
 		DELETE
+	type/basic:
+		GET

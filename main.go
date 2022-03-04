@@ -42,12 +42,34 @@ func addToCollection(c *gin.Context) {}
 func deleteCollection(c *gin.Context) {}
 func getData(c *gin.Context) {}
 func deleteData(c *gin.Context) {}
+
+type NamedType struct {
+	name string
+	typ BasicType
+}
+
+//var namedTypes = make([]NamedType)
 func getNamedTypes(c *gin.Context) {}
 func createNamedType(c *gin.Context) {}
 func getNamedType(c *gin.Context) {}
 func deleteNamedType(c *gin.Context) {}
 
+type BasicType int
+const (
+	num BasicType = iota
+	str
+)
 var basicTypes = []string{"num", "str"}
+func (t BasicType) String() string {
+	switch t {
+		case num:
+			return "num"
+		case str:
+			return "str"
+	}
+	return "unknown"
+}
+
 func getBasicTypes(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, basicTypes)
 }
