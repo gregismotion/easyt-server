@@ -109,6 +109,16 @@ func nameToCollection(name string) (collection Collection, ok bool) {
 	ok = false
 	return
 }
+func removeCollection(collection Collection) {
+	i := 0
+	for _, elem := range collections {
+		if elem.Name != collection.Name {
+			collections[i] = elem
+			i++
+		}
+	}
+	collections = collections[:i]
+}
 var collections = make([]Collection, 0)
 func getCollections(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, collections)
@@ -158,7 +168,21 @@ func getCollection(c *gin.Context) {
 	}
 }
 func addToCollection(c *gin.Context) {}
-func deleteCollection(c *gin.Context) {}
+func deleteCollection(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			removeCollection(collection)
+			// NOTE: maybe some message would be appropiate? consult the do- oh wait
+			c.String(http.StatusOK, "")
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
 func getData(c *gin.Context) {}
 func deleteData(c *gin.Context) {}
 
@@ -188,6 +212,7 @@ func nameToNamedType(name string) (namedType NamedType, ok bool) {
 func removeNamedType(namedType NamedType) {
 	i := 0
 	for _, elem := range namedTypes {
+		// TODO: check only for name
 		if elem != namedType {
 			namedTypes[i] = elem
 			i++
