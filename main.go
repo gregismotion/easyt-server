@@ -3,14 +3,17 @@ package main
 
 // TODO: move these to right places
 import (
-	"fmt"
+	"git.freeself.one/thegergo02/easyt/basic"
+
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"fmt"
 	"net/http"
-	"bytes"
-	"encoding/json"
 	"time"
 	"strconv"
-	"github.com/google/uuid"
+
+	"bytes"
 )
 
 func main() {
@@ -137,13 +140,13 @@ func addData(c *gin.Context) {
 					value := body.Value
 					// TODO: should return error at unparseable values
 					switch namedType.Type {
-						case num:
+						case basic.Num:
 							if n, err := strconv.ParseFloat(value, 64); err == nil {
 								dataWrapper.Num = n
 							} else {
 								dataWrapper.Str = value
 							}
-						case str:
+						case basic.Str:
 							dataWrapper.Str = value
 						default:
 							dataWrapper.Str = value
@@ -224,7 +227,7 @@ func getNamedTypes(c *gin.Context) {
 
 // TODO: use json
 func createNamedType(c *gin.Context) {
-	typ, ok := strToBasicType(c.PostForm("type"))
+	typ, ok := basic.StrToBasicType(c.PostForm("type"))
 	if ok {
 		name := c.PostForm("name")
 		if name != "" {
@@ -277,7 +280,7 @@ func deleteNamedType(c *gin.Context) {
 }
 
 func getBasicTypes(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, strToBasicTypes)
+	c.IndentedJSON(http.StatusOK, basic.StrToBasicTypes)
 }
 /// MAIN END ///
 
@@ -295,10 +298,10 @@ func (data DataWrapper) MarshalJSON() ([]byte, error) {
 	buffer.WriteString(data.Id)
 	buffer.WriteString(`","value":"`)
 	switch data.Type {
-		case num:
+		case basic.Num:
 			buffer.WriteString(fmt.Sprintf("%.5f", data.Num)) 
 			// TODO: what precision do we need?
-		case str:
+		case basic.Str:
 			buffer.WriteString(data.Str)
 		default:
 			buffer.WriteString("unknown")
@@ -366,7 +369,7 @@ type DataWrapper struct {
 	Id string `json:"id"`
 	// TODO: try tinytime, we don't need nanosecond precision...
 	Time time.Time `json:"time"`
-	Type BasicType `json:"type"`
+	Type basic.BasicType `json:"type"`
 	Num float64 `json:"num"`
 	Str string `json:"str"`
 }
@@ -412,7 +415,7 @@ var collections = make([]Collection, 0)
 
 type NamedType struct {
 	Name string `json:"name"`
-	Type BasicType `json:"type"`
+	Type basic.BasicType `json:"type"`
 }
 func (namedType NamedType) isUnique() bool {
 	for _, elem := range namedTypes {
@@ -446,51 +449,3 @@ func removeNamedType(namedType NamedType) {
 }
 var namedTypes = make([]NamedType, 0)
 /// STORAGE END ///
-
-
-
-/// BASIC TYPE START ///
-type BasicType int
-const (
-	num BasicType = iota
-	str
-)
-// NOTE: this will get out of hand, FIND ALTERNATIVE!!!
-var strToBasicTypes = map[string]BasicType {
-	"num": num,
-	"str": str,
-}
-var basicTypesToStr = map[BasicType]string {
-	num: "num",
-	str: "str",
-}
-func (t BasicType) String() (str string) {
-	str, ok := basicTypesToStr[t]
-	if !ok {
-		str = "unknown"
-	}
-	return
-}
-func strToBasicType(str string) (BasicType, bool) {
-	typ, ok := strToBasicTypes[str]
-	return typ, ok
-}
-func (typ BasicType) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString(`"`)
-	buffer.WriteString(typ.String())
-	buffer.WriteString(`"`)
-	return buffer.Bytes(), nil
-}
-func (typ *BasicType) UnmarshalJSON(b []byte) error {
-	var j string
-	err := json.Unmarshal(b, &j)
-	if err != nil {
-		return err
-	}
-	readTyp, ok := strToBasicType(j)
-	if ok {
-		*typ = readTyp
-	} 	
-	return nil
-}
-/// BASIC TYPE END ///
