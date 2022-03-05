@@ -94,6 +94,29 @@ func idToData(collection Collection, id string) (DataWrapper, bool){
 	}
 	return DataWrapper{}, false
 }
+// TODO: optimize, but will probably disappear with storage backend refactor...
+func removeData(collection Collection, data DataWrapper) {
+	var targetType NamedType
+	done := false
+	for namedType, dataWrappers := range collection.Data {
+		for _, dataWrapper := range dataWrappers {
+			if dataWrapper.Id == data.Id {
+				targetType = namedType
+				done = true
+				break
+			}
+		}
+		if done { break }
+	}
+	i := 0
+	for _, elem := range collection.Data[targetType] {
+		if elem.Id != data.Id {
+			collection.Data[targetType][i] = elem
+			i++
+		}
+	}
+	collection.Data[targetType] = collection.Data[targetType][:i]
+}
 type DataWrappers map[NamedType][]DataWrapper
 type DataWrapper struct {
 	Id string `json:"id"`
@@ -261,7 +284,7 @@ func getData(c *gin.Context) {
 			if id != "" {
 				data, ok := idToData(collection, id)
 				if ok {
-					c.IndentedJSON(http.StatusCreated, data)
+					c.IndentedJSON(http.StatusOK, data)
 				} else {
 					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
 				}
@@ -276,7 +299,32 @@ func getData(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
 	}
 }
-func deleteData(c *gin.Context) {}
+func deleteData(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			id := c.Param("idD")
+			if id != "" {
+				data, ok := idToData(collection, id)
+				if ok {
+					removeData(collection, data)
+					// TODO: return smt?
+					c.IndentedJSON(http.StatusOK, "")
+				} else {
+					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
+				}
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
+			}
+			
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
 
 type NamedType struct {
 	Name string `json:"name"`
