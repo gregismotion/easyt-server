@@ -1,4 +1,4 @@
-module git.freeself.one/thegergo02/easypt
+module git.freeself.one/thegergo02/easyt
 
 go 1.17
 
