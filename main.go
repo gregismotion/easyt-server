@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"time"
+	"strconv"
 )
 
 func main() {
@@ -19,8 +20,8 @@ func main() {
 			col.GET("/", getCollections)
 			col.POST("/", createCollection)
 			col.GET("/:name", getCollection)
-			col.POST("/:name", addToCollection)
 			col.DELETE("/:name", deleteCollection)
+			col.POST("/:name", addData)
 			col.GET("/data/:name/:idD", getData)
 			col.DELETE("/data/:name/:idD", deleteData)
 		}
@@ -67,11 +68,12 @@ func (data DataWrappers) MarshalJSON() ([]byte, error) {
 		buffer.WriteString(`"`)
 		buffer.WriteString(namedType.Name)
 		buffer.WriteString(`":[`)
+		dFirst := true
 		for _, dataWrapper := range dataWrappers {
+			if !dFirst { buffer.WriteString(`,`) } else { dFirst = false }
 			bytes, err := dataWrapper.MarshalJSON()
 			if err != nil { return buffer.Bytes(), err }
 			buffer.Write(bytes)
-			buffer.WriteString(`,`)
 		}
 		buffer.WriteString(`]`)
 	}
@@ -118,6 +120,9 @@ func removeCollection(collection Collection) {
 		}
 	}
 	collections = collections[:i]
+}
+func addToCollection(dataWrapper DataWrapper, namedType NamedType, collection *Collection) {
+	(*collection).Data[namedType] = append((*collection).Data[namedType], dataWrapper)
 }
 var collections = make([]Collection, 0)
 func getCollections(c *gin.Context) {
@@ -167,7 +172,6 @@ func getCollection(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name passed!"})
 	}
 }
-func addToCollection(c *gin.Context) {}
 func deleteCollection(c *gin.Context) {
 	name := c.Param("name")
 	if name != "" {
@@ -178,6 +182,54 @@ func deleteCollection(c *gin.Context) {
 			c.String(http.StatusOK, "")
 		} else {
 			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
+type DataRequestBody struct {
+	Time 	  string `json:"time,omitempty"`
+	NamedType string `json:"named_type"`
+	Value 	  string `json:"value"`
+}
+func addData(c *gin.Context) {
+	var body DataRequestBody
+	name := c.Param("name")
+	if name != "" {
+		if err := c.BindJSON(&body); err == nil  {
+			collection, ok := nameToCollection(name)
+			if ok {
+				time := time.Now() // TODO: get time from body
+				namedType, okTyp := nameToNamedType(body.NamedType)
+				if okTyp {
+					dataWrapper := DataWrapper {
+						Time: time,
+						Type: namedType.Type,
+					}
+					value := body.Value
+					switch namedType.Type {
+						case num:
+							if n, err := strconv.ParseFloat(value, 64); err == nil {
+								dataWrapper.Num = n
+							} else {
+								dataWrapper.Str = value
+							}
+						case str:
+							dataWrapper.Str = value
+						default:
+							dataWrapper.Str = value
+					}
+					addToCollection(dataWrapper, namedType, &collection)
+					c.IndentedJSON(http.StatusCreated, dataWrapper)
+				} else {
+					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Named type does not exist!"})
+				}
+				
+			} else {
+				c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+			}
+		} else {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
 		}
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
@@ -224,6 +276,7 @@ var namedTypes = make([]NamedType, 0)
 func getNamedTypes(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, namedTypes)
 }
+// TODO: use json
 func createNamedType(c *gin.Context) {
 	typ, ok := strToBasicType(c.PostForm("type"))
 	if ok {
