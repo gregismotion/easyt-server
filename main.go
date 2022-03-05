@@ -280,7 +280,7 @@ func deleteNamedType(c *gin.Context) {
 }
 
 func getBasicTypes(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, basic.StrToBasicTypes)
+	c.IndentedJSON(http.StatusOK, basic.GetBasicTypes())
 }
 /// MAIN END ///
 

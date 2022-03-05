@@ -25,6 +25,14 @@ var basicTypesToStr = map[BasicType]string {
 	Str: "str",
 }
 
+// Return a list of basic types (as strings)
+func GetBasicTypes() (types []string) {
+	for _, v := range basicTypesToStr {
+		types = append(types, v)
+	}
+	return
+}
+
 // Convert a BasicType to it's string counterpart
 func (t BasicType) String() (str string) {
 	str, ok := basicTypesToStr[t]
