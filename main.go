@@ -1,5 +1,7 @@
+/// MAIN START ///
 package main
 
+// TODO: move these to right places
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -41,6 +43,247 @@ func main() {
 	r.Run(host)
 }
 
+func getCollections(c *gin.Context) {
+	collectionNames := make([]string, 0)
+	for _, collection := range collections {
+		collectionNames = append(collectionNames, collection.Name)
+	}
+	c.IndentedJSON(http.StatusOK, collectionNames)
+}
+
+type CollectionRequestBody struct {
+	Name string `json:"name"`
+	NamedTypes []string `json:"named_types"`
+}
+func createCollection(c *gin.Context) {
+	var body CollectionRequestBody
+	if err := c.BindJSON(&body); err == nil  {
+		collection := Collection {
+			Name: body.Name,
+			Data: make(DataWrappers),
+		}
+		if collection.isUnique() {
+			for _, name := range body.NamedTypes {
+				namedType, ok := nameToNamedType(name)
+				if ok {
+					collection.Data[namedType] = make([]DataWrapper, 0)
+				} else {
+					// TODO: completely fail, ignore or smt else when bad named type?
+					c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Non-existent named type!"})
+					return
+				}
+			}
+			collections = append(collections, collection)
+			c.IndentedJSON(http.StatusOK, collection)
+		} else {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
+	}
+}
+
+func getCollection(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			c.IndentedJSON(http.StatusOK, collection)
+		} else {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't find collection with this name!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name passed!"})
+	}
+}
+
+func deleteCollection(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			removeCollection(collection)
+			// NOTE: maybe some message would be appropiate? consult the do- oh wait
+			c.String(http.StatusOK, "")
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
+
+
+type DataRequestBody struct {
+	Time 	  string `json:"time,omitempty"`
+	NamedType string `json:"named_type"`
+	Value 	  string `json:"value"`
+}
+func addData(c *gin.Context) {
+	var body DataRequestBody
+	name := c.Param("name")
+	if name != "" {
+		if err := c.BindJSON(&body); err == nil  {
+			collection, ok := nameToCollection(name)
+			if ok {
+				time := time.Now() // TODO: get time from body
+				namedType, okTyp := nameToNamedType(body.NamedType)
+				if okTyp {
+					dataWrapper := DataWrapper {
+						Id: uuid.New().String(),
+						Time: time,
+						Type: namedType.Type,
+					}
+					value := body.Value
+					// TODO: should return error at unparseable values
+					switch namedType.Type {
+						case num:
+							if n, err := strconv.ParseFloat(value, 64); err == nil {
+								dataWrapper.Num = n
+							} else {
+								dataWrapper.Str = value
+							}
+						case str:
+							dataWrapper.Str = value
+						default:
+							dataWrapper.Str = value
+					}
+					addToCollection(dataWrapper, namedType, &collection)
+					c.IndentedJSON(http.StatusCreated, dataWrapper)
+				} else {
+					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Named type does not exist!"})
+				}
+				
+			} else {
+				c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+			}
+		} else {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
+
+func getData(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			id := c.Param("idD")
+			if id != "" {
+				data, ok := idToData(collection, id)
+				if ok {
+					c.IndentedJSON(http.StatusOK, data)
+				} else {
+					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
+				}
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
+			}
+			
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
+
+func deleteData(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			id := c.Param("idD")
+			if id != "" {
+				data, ok := idToData(collection, id)
+				if ok {
+					removeData(collection, data)
+					// TODO: return smt?
+					c.IndentedJSON(http.StatusOK, "")
+				} else {
+					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
+				}
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
+			}
+			
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
+
+
+func getNamedTypes(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, namedTypes)
+}
+
+// TODO: use json
+func createNamedType(c *gin.Context) {
+	typ, ok := strToBasicType(c.PostForm("type"))
+	if ok {
+		name := c.PostForm("name")
+		if name != "" {
+			namedType := NamedType {
+				Name: name,
+				Type: typ,
+			}
+			if namedType.isUnique() {
+				namedTypes = append(namedTypes, namedType)
+				c.IndentedJSON(http.StatusCreated, namedType)
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
+			}
+		} else {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Unknown basic type!"})
+	}
+}
+
+func getNamedType(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		namedType, ok := nameToNamedType(name)
+		if ok {
+			c.IndentedJSON(http.StatusOK, namedType)
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
+
+func deleteNamedType(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		namedType, ok := nameToNamedType(name)
+		if ok {
+			removeNamedType(namedType)
+			// NOTE: maybe some message would be appropiate? consult the do- oh wait
+			c.String(http.StatusOK, "")
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
+
+func getBasicTypes(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, strToBasicTypes)
+}
+/// MAIN END ///
+
+
+
+/// STORAGE START ///
 // NOTE: might become unmanageable, find alternative
 // TODO: nicer string formatting, this looks ugly rn
 func (data DataWrapper) MarshalJSON() ([]byte, error) {
@@ -117,6 +360,7 @@ func removeData(collection Collection, data DataWrapper) {
 	}
 	collection.Data[targetType] = collection.Data[targetType][:i]
 }
+
 type DataWrappers map[NamedType][]DataWrapper
 type DataWrapper struct {
 	Id string `json:"id"`
@@ -126,6 +370,7 @@ type DataWrapper struct {
 	Num float64 `json:"num"`
 	Str string `json:"str"`
 }
+
 type Collection struct {
 	Name string `json:"name"`
 	Data DataWrappers `json:"type"`
@@ -163,168 +408,7 @@ func addToCollection(dataWrapper DataWrapper, namedType NamedType, collection *C
 	(*collection).Data[namedType] = append((*collection).Data[namedType], dataWrapper)
 }
 var collections = make([]Collection, 0)
-func getCollections(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, collections)
-}
-type CollectionRequestBody struct {
-	Name string `json:"name"`
-	NamedTypes []string `json:"named_types"`
-}
-func createCollection(c *gin.Context) {
-	var body CollectionRequestBody
-	if err := c.BindJSON(&body); err == nil  {
-		collection := Collection {
-			Name: body.Name,
-			Data: make(DataWrappers),
-		}
-		if collection.isUnique() {
-			for _, name := range body.NamedTypes {
-				namedType, ok := nameToNamedType(name)
-				if ok {
-					collection.Data[namedType] = make([]DataWrapper, 0)
-				} else {
-					// TODO: completely fail, ignore or smt else when bad named type?
-					c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Non-existent named type!"})
-					return
-				}
-			}
-			collections = append(collections, collection)
-			c.IndentedJSON(http.StatusOK, collection)
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
-	}
-}
-func getCollection(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
-		if ok {
-			c.IndentedJSON(http.StatusOK, collection)
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't find collection with this name!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name passed!"})
-	}
-}
-func deleteCollection(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
-		if ok {
-			removeCollection(collection)
-			// NOTE: maybe some message would be appropiate? consult the do- oh wait
-			c.String(http.StatusOK, "")
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
-type DataRequestBody struct {
-	Time 	  string `json:"time,omitempty"`
-	NamedType string `json:"named_type"`
-	Value 	  string `json:"value"`
-}
-func addData(c *gin.Context) {
-	var body DataRequestBody
-	name := c.Param("name")
-	if name != "" {
-		if err := c.BindJSON(&body); err == nil  {
-			collection, ok := nameToCollection(name)
-			if ok {
-				time := time.Now() // TODO: get time from body
-				namedType, okTyp := nameToNamedType(body.NamedType)
-				if okTyp {
-					dataWrapper := DataWrapper {
-						Id: uuid.New().String(),
-						Time: time,
-						Type: namedType.Type,
-					}
-					value := body.Value
-					// TODO: should return error at unparseable values
-					switch namedType.Type {
-						case num:
-							if n, err := strconv.ParseFloat(value, 64); err == nil {
-								dataWrapper.Num = n
-							} else {
-								dataWrapper.Str = value
-							}
-						case str:
-							dataWrapper.Str = value
-						default:
-							dataWrapper.Str = value
-					}
-					addToCollection(dataWrapper, namedType, &collection)
-					c.IndentedJSON(http.StatusCreated, dataWrapper)
-				} else {
-					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Named type does not exist!"})
-				}
-				
-			} else {
-				c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
-			}
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
-func getData(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
-		if ok {
-			id := c.Param("idD")
-			if id != "" {
-				data, ok := idToData(collection, id)
-				if ok {
-					c.IndentedJSON(http.StatusOK, data)
-				} else {
-					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
-				}
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
-			}
-			
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
-func deleteData(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
-		if ok {
-			id := c.Param("idD")
-			if id != "" {
-				data, ok := idToData(collection, id)
-				if ok {
-					removeData(collection, data)
-					// TODO: return smt?
-					c.IndentedJSON(http.StatusOK, "")
-				} else {
-					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
-				}
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
-			}
-			
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
+
 
 type NamedType struct {
 	Name string `json:"name"`
@@ -361,61 +445,11 @@ func removeNamedType(namedType NamedType) {
 	namedTypes = namedTypes[:i]
 }
 var namedTypes = make([]NamedType, 0)
-func getNamedTypes(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, namedTypes)
-}
-// TODO: use json
-func createNamedType(c *gin.Context) {
-	typ, ok := strToBasicType(c.PostForm("type"))
-	if ok {
-		name := c.PostForm("name")
-		if name != "" {
-			namedType := NamedType {
-				Name: name,
-				Type: typ,
-			}
-			if namedType.isUnique() {
-				namedTypes = append(namedTypes, namedType)
-				c.IndentedJSON(http.StatusCreated, namedType)
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
-			}
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Unknown basic type!"})
-	}
-}
-func getNamedType(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		namedType, ok := nameToNamedType(name)
-		if ok {
-			c.IndentedJSON(http.StatusOK, namedType)
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
-func deleteNamedType(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		namedType, ok := nameToNamedType(name)
-		if ok {
-			removeNamedType(namedType)
-			// NOTE: maybe some message would be appropiate? consult the do- oh wait
-			c.String(http.StatusOK, "")
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
+/// STORAGE END ///
 
+
+
+/// BASIC TYPE START ///
 type BasicType int
 const (
 	num BasicType = iota
@@ -459,7 +493,4 @@ func (typ *BasicType) UnmarshalJSON(b []byte) error {
 	} 	
 	return nil
 }
-
-func getBasicTypes(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, strToBasicTypes)
-}
+/// BASIC TYPE END ///
