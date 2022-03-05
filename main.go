@@ -18,11 +18,11 @@ func main() {
 		{
 			col.GET("/", getCollections)
 			col.POST("/", createCollection)
-			col.GET("/:id", getCollection)
-			col.POST("/:id", addToCollection)
-			col.DELETE("/:id", deleteCollection)
-			col.GET("/data/:idC/:idD", getData)
-			col.DELETE("/data/:idC/:idD", deleteData)
+			col.GET("/:name", getCollection)
+			col.POST("/:name", addToCollection)
+			col.DELETE("/:name", deleteCollection)
+			col.GET("/data/:name/:idD", getData)
+			col.DELETE("/data/:name/:idD", deleteData)
 		}
 		typ := v1.Group("/type")
 		{
@@ -98,6 +98,17 @@ func (collection Collection) isUnique() bool {
 	}
 	return true
 }
+func nameToCollection(name string) (collection Collection, ok bool) {
+	for _, elem := range collections {
+		if elem.Name == name {
+			collection = elem
+			ok = true
+			return
+		}
+	}
+	ok = false
+	return
+}
 var collections = make([]Collection, 0)
 func getCollections(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, collections)
@@ -115,7 +126,7 @@ func createCollection(c *gin.Context) {
 		}
 		if collection.isUnique() {
 			for _, name := range body.NamedTypes {
-				namedType, ok := nameToNamedType(name, namedTypes)
+				namedType, ok := nameToNamedType(name)
 				if ok {
 					collection.Data[namedType] = make([]DataWrapper, 0)
 				} else {
@@ -133,7 +144,19 @@ func createCollection(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
 	}
 }
-func getCollection(c *gin.Context) {}
+func getCollection(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			c.IndentedJSON(http.StatusOK, collection)
+		} else {
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't find collection with this name!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name passed!"})
+	}
+}
 func addToCollection(c *gin.Context) {}
 func deleteCollection(c *gin.Context) {}
 func getData(c *gin.Context) {}
@@ -151,7 +174,7 @@ func (namedType NamedType) isUnique() bool {
 	}
 	return true
 }
-func nameToNamedType(name string, namedTypes []NamedType) (namedType NamedType, ok bool) {
+func nameToNamedType(name string) (namedType NamedType, ok bool) {
 	for _, elem := range namedTypes {
 		if elem.Name == name {
 			namedType = elem
@@ -201,7 +224,7 @@ func createNamedType(c *gin.Context) {
 func getNamedType(c *gin.Context) {
 	name := c.Param("name")
 	if name != "" {
-		namedType, ok := nameToNamedType(name, namedTypes)
+		namedType, ok := nameToNamedType(name)
 		if ok {
 			c.IndentedJSON(http.StatusOK, namedType)
 		} else {
@@ -214,7 +237,7 @@ func getNamedType(c *gin.Context) {
 func deleteNamedType(c *gin.Context) {
 	name := c.Param("name")
 	if name != "" {
-		namedType, ok := nameToNamedType(name, namedTypes)
+		namedType, ok := nameToNamedType(name)
 		if ok {
 			removeNamedType(namedType)
 			// NOTE: maybe some message would be appropiate? consult the do- oh wait
