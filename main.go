@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"time"
 	"strconv"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -17,6 +18,7 @@ func main() {
 	{
 		col := v1.Group("/collection")
 		{
+			// TODO: use id for collections too, names can get weird in urls...
 			col.GET("/", getCollections)
 			col.POST("/", createCollection)
 			col.GET("/:name", getCollection)
@@ -46,6 +48,8 @@ func (data DataWrapper) MarshalJSON() ([]byte, error) {
 	buffer.WriteString(data.Time.String())
 	buffer.WriteString(`","type":"`)
 	buffer.WriteString(data.Type.String())
+	buffer.WriteString(`","id":"`)
+	buffer.WriteString(data.Id)
 	buffer.WriteString(`","value":"`)
 	switch data.Type {
 		case num:
@@ -80,8 +84,19 @@ func (data DataWrappers) MarshalJSON() ([]byte, error) {
 	buffer.WriteString(`}`)
 	return buffer.Bytes(), nil
 }
+func idToData(collection Collection, id string) (DataWrapper, bool){
+	for _, dataWrappers := range collection.Data {
+		for _, data := range dataWrappers {
+			if data.Id == id {
+				return data, true
+			}
+		}
+	}
+	return DataWrapper{}, false
+}
 type DataWrappers map[NamedType][]DataWrapper
 type DataWrapper struct {
+	Id string `json:"id"`
 	// TODO: try tinytime, we don't need nanosecond precision...
 	Time time.Time `json:"time"`
 	Type BasicType `json:"type"`
@@ -203,10 +218,12 @@ func addData(c *gin.Context) {
 				namedType, okTyp := nameToNamedType(body.NamedType)
 				if okTyp {
 					dataWrapper := DataWrapper {
+						Id: uuid.New().String(),
 						Time: time,
 						Type: namedType.Type,
 					}
 					value := body.Value
+					// TODO: should return error at unparseable values
 					switch namedType.Type {
 						case num:
 							if n, err := strconv.ParseFloat(value, 64); err == nil {
@@ -235,7 +252,30 @@ func addData(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
 	}
 }
-func getData(c *gin.Context) {}
+func getData(c *gin.Context) {
+	name := c.Param("name")
+	if name != "" {
+		collection, ok := nameToCollection(name)
+		if ok {
+			id := c.Param("idD")
+			if id != "" {
+				data, ok := idToData(collection, id)
+				if ok {
+					c.IndentedJSON(http.StatusCreated, data)
+				} else {
+					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
+				}
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
+			}
+			
+		} else {
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+	}
+}
 func deleteData(c *gin.Context) {}
 
 type NamedType struct {
