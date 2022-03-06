@@ -1,21 +1,18 @@
 /// MAIN START ///
 package main
 
-// TODO: move these to right places
 import (
 	"git.freeself.one/thegergo02/easyt/basic"
+	"git.freeself.one/thegergo02/easyt/storage"
+
+	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-
-	"fmt"
-	"net/http"
-	"time"
-	"strconv"
-
-	"bytes"
 )
 
+var storageBackend Storage
 func main() {
 	r := gin.Default()
 	
@@ -23,39 +20,41 @@ func main() {
 	{
 		col := v1.Group("/collection")
 		{
-			// TODO: use id for collections too, names can get weird in urls...
 			col.GET("/", getCollections)
 			col.POST("/", createCollection)
-			col.GET("/:name", getCollection)
-			col.DELETE("/:name", deleteCollection)
-			col.POST("/:name", addData)
-			col.GET("/data/:name/:idD", getData)
-			col.DELETE("/data/:name/:idD", deleteData)
+			col.GET("/:id", getCollection)
+			col.DELETE("/:id", deleteCollection)
+			col.POST("/:colId", addData)
+			col.GET("/data/:colId/:dataId", getData)
+			col.DELETE("/data/:colId/:dataId", deleteData)
 		}
 		typ := v1.Group("/type")
 		{
 			typ.GET("/named", getNamedTypes)
 			typ.POST("/named", createNamedType)
-			typ.GET("/:name", getNamedType)
-			typ.DELETE("/:name", deleteNamedType)
+			typ.GET("/:id", getNamedType)
+			typ.DELETE("/:id", deleteNamedType)
 			typ.GET("/basic", getBasicTypes)
 		}
 	}
 
 	host := "localhost:8080"
+
+	//storageBackend = // TODO: init storageBackend backend
 	r.Run(host)
 }
 
 func getCollections(c *gin.Context) {
-	collectionNames := make([]string, 0)
+	/*collectionNames := make([]string, 0)
 	for _, collection := range collections {
 		collectionNames = append(collectionNames, collection.Name)
 	}
-	c.IndentedJSON(http.StatusOK, collectionNames)
+	c.IndentedJSON(http.StatusOK, collectionNames)*/
+	c.IndentedJSON(http.StatusOK, storageBackend.GetCollectionReferences())
 }
 
 type CollectionRequestBody struct {
-	Name string `json:"name"`
+	Name 	     string `json:"name"`
 	NamedTypes []string `json:"named_types"`
 }
 func createCollection(c *gin.Context) {
@@ -65,9 +64,9 @@ func createCollection(c *gin.Context) {
 			Name: body.Name,
 			Data: make(DataWrappers),
 		}
-		if collection.isUnique() {
-			for _, name := range body.NamedTypes {
-				namedType, ok := nameToNamedType(name)
+		if collection.isUnique(storageBackend) {
+			for _, id := range body.NamedTypes {
+				namedType, ok := storageBackend.GetNamedTypeById(id)
 				if ok {
 					collection.Data[namedType] = make([]DataWrapper, 0)
 				} else {
@@ -76,8 +75,12 @@ func createCollection(c *gin.Context) {
 					return
 				}
 			}
-			collections = append(collections, collection)
-			c.IndentedJSON(http.StatusOK, collection)
+			//collections = append(collections, collection)
+			if storageBackend.createCollection(collection) {
+				c.IndentedJSON(http.StatusOK, collection)
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't create collection!"})
+			}
 		} else {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
 		}
@@ -86,36 +89,32 @@ func createCollection(c *gin.Context) {
 	}
 }
 
-func getCollection(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
+func getCollection(c *gin.Context) { // TODO: add return limit of data
+	id := c.Param("name")
+	if id != "" {
+		collection, ok := storageBackend.GetCollectionById(id)
 		if ok {
 			c.IndentedJSON(http.StatusOK, collection)
 		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't find collection with this name!"})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't find collection with this ID!"})
 		}
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name passed!"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID passed!"})
 	}
 }
 
 func deleteCollection(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
-		if ok {
-			removeCollection(collection)
-			// NOTE: maybe some message would be appropiate? consult the do- oh wait
-			c.String(http.StatusOK, "")
+	id := c.Param("id")
+	if id != "" {
+		if storageBackend.DeleteCollectionById(id) {
+			c.String(http.StatusOK, "") // NOTE: maybe some message would be appropiate? consult the do- oh wait
 		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't delete collection!"})
 		}
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
 	}
 }
-
 
 type DataRequestBody struct {
 	Time 	  string `json:"time,omitempty"`
@@ -124,13 +123,12 @@ type DataRequestBody struct {
 }
 func addData(c *gin.Context) {
 	var body DataRequestBody
-	name := c.Param("name")
-	if name != "" {
-		if err := c.BindJSON(&body); err == nil  {
-			collection, ok := nameToCollection(name)
-			if ok {
+	id := c.Param("id")
+	if id != "" {
+		if c.BindJSON(&body) == nil {
+			if storageBackend.IsCollectionExistentById(id) {
 				time := time.Now() // TODO: get time from body
-				namedType, okTyp := nameToNamedType(body.NamedType)
+				namedType, okTyp := storageBackend.GetNamedTypeById(body.NamedType)
 				if okTyp {
 					dataWrapper := DataWrapper {
 						Id: uuid.New().String(),
@@ -138,8 +136,7 @@ func addData(c *gin.Context) {
 						Type: namedType.Type,
 					}
 					value := body.Value
-					// TODO: should return error at unparseable values
-					switch namedType.Type {
+					switch namedType.Type { // TODO: should return error at unparseable values
 						case basic.Num:
 							if n, err := strconv.ParseFloat(value, 64); err == nil {
 								dataWrapper.Num = n
@@ -151,7 +148,7 @@ func addData(c *gin.Context) {
 						default:
 							dataWrapper.Str = value
 					}
-					addToCollection(dataWrapper, namedType, &collection)
+					storageBackend.AddDataToCollectionById(dataWrapper, namedType, id)
 					c.IndentedJSON(http.StatusCreated, dataWrapper)
 				} else {
 					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Named type does not exist!"})
@@ -164,18 +161,17 @@ func addData(c *gin.Context) {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
 		}
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
 	}
 }
 
 func getData(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
-		if ok {
-			id := c.Param("idD")
-			if id != "" {
-				data, ok := idToData(collection, id)
+	colId := c.Param("colId")
+	if colId != "" {
+		if storageBackend.IsCollectionExistentById(colId) {
+			dataId := c.Param("dataId")
+			if dataId != "" {
+				data, ok := storageBackend.GetDataInCollectionById(colId, dataId)
 				if ok {
 					c.IndentedJSON(http.StatusOK, data)
 				} else {
@@ -184,26 +180,21 @@ func getData(c *gin.Context) {
 			} else {
 				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
 			}
-			
 		} else {
 			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
 		}
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No collection ID specified!"})
 	}
 }
 
 func deleteData(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		collection, ok := nameToCollection(name)
-		if ok {
-			id := c.Param("idD")
-			if id != "" {
-				data, ok := idToData(collection, id)
-				if ok {
-					removeData(collection, data)
-					// TODO: return smt?
+	colId := c.Param("colId")
+	if colId != "" {
+		if storageBackend.IsCollectionExistentById(colId) {
+			dataId := c.Param("dataId")
+			if dataId != "" {
+				if storageBackend.RemoveDataFromCollectionById(colId, dataId) {
 					c.IndentedJSON(http.StatusOK, "")
 				} else {
 					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
@@ -211,7 +202,6 @@ func deleteData(c *gin.Context) {
 			} else {
 				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
 			}
-			
 		} else {
 			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
 		}
@@ -222,57 +212,59 @@ func deleteData(c *gin.Context) {
 
 
 func getNamedTypes(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, namedTypes)
+	c.IndentedJSON(http.StatusOK, storageBackend.GetNamedTypes())
 }
 
-// TODO: use json
+type NamedTypeRequestBody struct {
+	BasicType string `json:"basic_type"`
+	Name string `json:"name"`
+}
 func createNamedType(c *gin.Context) {
-	typ, ok := basic.StrToBasicType(c.PostForm("type"))
-	if ok {
-		name := c.PostForm("name")
-		if name != "" {
+	var body NamedTypeRequestBody
+	if c.BindJSON(&body) {
+		typ, ok := basic.StrToBasicType(body.NamedType)
+		if ok {
 			namedType := NamedType {
-				Name: name,
+				Id: uuid().New().String(),
+				Name: body.Name,
 				Type: typ,
 			}
-			if namedType.isUnique() {
-				namedTypes = append(namedTypes, namedType)
+			if namedType.isUnique(storageBackend) {
+				//namedTypes = append(namedTypes, namedType)
+				storageBackend.CreateNamedType(namedType)
 				c.IndentedJSON(http.StatusCreated, namedType)
 			} else {
 				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Duplicate name!"})
 			}
 		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Unknown basic type!"})
 		}
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Unknown basic type!"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
 	}
 }
 
 func getNamedType(c *gin.Context) {
-	name := c.Param("name")
-	if name != "" {
-		namedType, ok := nameToNamedType(name)
+	id := c.Param("id")
+	if id != "" {
+		namedType, ok := GetNamedTypeById(id)
 		if ok {
 			c.IndentedJSON(http.StatusOK, namedType)
 		} else {
 			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
 		}
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
 	}
 }
 
 func deleteNamedType(c *gin.Context) {
-	name := c.Param("name")
+	id := c.Param("id")
 	if name != "" {
-		namedType, ok := nameToNamedType(name)
-		if ok {
-			removeNamedType(namedType)
-			// NOTE: maybe some message would be appropiate? consult the do- oh wait
-			c.String(http.StatusOK, "")
+		if storageBackend.DeleteNamedTypeById(id) {
+			c.String(http.StatusOK, "") // NOTE: maybe some message would be appropiate? consult the do- oh wait
 		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
+			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't delete named type!"})
 		}
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
@@ -288,48 +280,6 @@ func getBasicTypes(c *gin.Context) {
 
 /// STORAGE START ///
 // NOTE: might become unmanageable, find alternative
-// TODO: nicer string formatting, this looks ugly rn
-func (data DataWrapper) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString(`{"time":"`)
-	buffer.WriteString(data.Time.String())
-	buffer.WriteString(`","type":"`)
-	buffer.WriteString(data.Type.String())
-	buffer.WriteString(`","id":"`)
-	buffer.WriteString(data.Id)
-	buffer.WriteString(`","value":"`)
-	switch data.Type {
-		case basic.Num:
-			buffer.WriteString(fmt.Sprintf("%.5f", data.Num)) 
-			// TODO: what precision do we need?
-		case basic.Str:
-			buffer.WriteString(data.Str)
-		default:
-			buffer.WriteString("unknown")
-
-	}
-	buffer.WriteString(`"}`)
-	return buffer.Bytes(), nil
-}
-func (data DataWrappers) MarshalJSON() ([]byte, error) {
-	buffer := bytes.NewBufferString("{")
-	first := true
-	for namedType, dataWrappers := range data {
-		if !first { buffer.WriteString(`,`) } else { first = false }
-		buffer.WriteString(`"`)
-		buffer.WriteString(namedType.Name)
-		buffer.WriteString(`":[`)
-		dFirst := true
-		for _, dataWrapper := range dataWrappers {
-			if !dFirst { buffer.WriteString(`,`) } else { dFirst = false }
-			bytes, err := dataWrapper.MarshalJSON()
-			if err != nil { return buffer.Bytes(), err }
-			buffer.Write(bytes)
-		}
-		buffer.WriteString(`]`)
-	}
-	buffer.WriteString(`}`)
-	return buffer.Bytes(), nil
-}
 func idToData(collection Collection, id string) (DataWrapper, bool){
 	for _, dataWrappers := range collection.Data {
 		for _, data := range dataWrappers {
@@ -340,7 +290,7 @@ func idToData(collection Collection, id string) (DataWrapper, bool){
 	}
 	return DataWrapper{}, false
 }
-// TODO: optimize, but will probably disappear with storage backend refactor...
+// TODO: optimize, but will probably disappear with storageBackend backend refactor...
 func removeData(collection Collection, data DataWrapper) {
 	var targetType NamedType
 	done := false
@@ -364,28 +314,6 @@ func removeData(collection Collection, data DataWrapper) {
 	collection.Data[targetType] = collection.Data[targetType][:i]
 }
 
-type DataWrappers map[NamedType][]DataWrapper
-type DataWrapper struct {
-	Id string `json:"id"`
-	// TODO: try tinytime, we don't need nanosecond precision...
-	Time time.Time `json:"time"`
-	Type basic.BasicType `json:"type"`
-	Num float64 `json:"num"`
-	Str string `json:"str"`
-}
-
-type Collection struct {
-	Name string `json:"name"`
-	Data DataWrappers `json:"type"`
-}
-func (collection Collection) isUnique() bool {
-	for _, elem := range collections {
-		if elem.Name == collection.Name {
-			return false
-		}
-	}
-	return true
-}
 func nameToCollection(name string) (collection Collection, ok bool) {
 	for _, elem := range collections {
 		if elem.Name == name {
@@ -411,20 +339,6 @@ func addToCollection(dataWrapper DataWrapper, namedType NamedType, collection *C
 	(*collection).Data[namedType] = append((*collection).Data[namedType], dataWrapper)
 }
 var collections = make([]Collection, 0)
-
-
-type NamedType struct {
-	Name string `json:"name"`
-	Type basic.BasicType `json:"type"`
-}
-func (namedType NamedType) isUnique() bool {
-	for _, elem := range namedTypes {
-		if elem.Name == namedType.Name {
-			return false
-		}
-	}
-	return true
-}
 func nameToNamedType(name string) (namedType NamedType, ok bool) {
 	for _, elem := range namedTypes {
 		if elem.Name == name {
