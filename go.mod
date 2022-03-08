@@ -5,6 +5,7 @@ go 1.17
 require (
 	git.freeself.one/thegergo02/easyt/basic v0.0.0-00010101000000-000000000000 // indirect
 	git.freeself.one/thegergo02/easyt/storage v0.0.0-00010101000000-000000000000 // indirect
+	git.freeself.one/thegergo02/easyt/storage/backends/memory v0.0.0-00010101000000-000000000000 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/gin v1.7.7 // indirect
 	github.com/go-playground/locales v0.13.0 // indirect
@@ -26,4 +27,5 @@ require (
 replace (
 	git.freeself.one/thegergo02/easyt/basic => ./basic
 	git.freeself.one/thegergo02/easyt/storage => ./storage
+	git.freeself.one/thegergo02/easyt/storage/backends/memory => ./storage/backends/memory
 )

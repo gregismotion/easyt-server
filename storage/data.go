@@ -2,7 +2,6 @@ package storage
 
 import (
 	"git.freeself.one/thegergo02/easyt/basic"
-	"fmt"
 	"time"
 	"bytes"
 )
@@ -10,29 +9,20 @@ import (
 type DataWrapper struct {
 	Id string `json:"id"`
 	Time time.Time `json:"time"` // TODO: try tinytime, we don't need nanosecond precision...
+	Value string `json:"value"`
 	Type basic.BasicType `json:"type"`
-	Num float64 `json:"num"`
-	Str string `json:"str"`
 }
 
 // TODO: nicer string formatting, this looks ugly rn
-func (data DataWrapper) MarshalJSON() ([]byte, error) {
+func (dataWrapper DataWrapper) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString(`{"time":"`)
-	buffer.WriteString(data.Time.String())
-	buffer.WriteString(`","type":"`)
-	buffer.WriteString(data.Type.String())
+	buffer.WriteString(dataWrapper.Time.String())
 	buffer.WriteString(`","id":"`)
-	buffer.WriteString(data.Id)
-	buffer.WriteString(`","value":"`)
-	switch data.Type {
-		case basic.Num:
-			buffer.WriteString(fmt.Sprintf("%.5f", data.Num)) // TODO: what precision do we need?
-		case basic.Str:
-			buffer.WriteString(data.Str)
-		default:
-			buffer.WriteString("unknown")
-
-	}
+	buffer.WriteString(dataWrapper.Id)
+	buffer.WriteString(`","type":"`)
+	buffer.WriteString(dataWrapper.Id)
+	buffer.WriteString(`","data":"`)
+	buffer.WriteString(dataWrapper.Value)
 	buffer.WriteString(`"}`)
 	return buffer.Bytes(), nil
 }

@@ -1,14 +1,21 @@
 package storage
 
-type Storage interface {
-	GetCollectionReferences()      ([]NameReference, bool)
-	IsCollectionExistentById(string) (bool)
-	CreateCollection(Collection)   (bool)
-	AddToCollectionById(DataWrapper, NamedType, string) (bool)
-	
-	GetDataInCollectionById(string, string) (DataWrapper, bool)
+import "time"
 
-	GetNamedTypeById(string)     (NamedType, bool)
+type Storage interface {
+	GetCollectionReferences()               	    ([]NameReference, bool)
+	IsCollectionExistentById(string)        	    (bool)
+	CreateCollectionByName(string, []string)   	    (NameReference, bool)
+	GetCollectionById(string) 			    (Collection, bool)
+	DeleteCollectionById(string)   			    (bool)
+	
+	AddDataToCollectionById(string, time.Time, string, string) (DataWrapper, bool)
+	GetDataInCollectionById(string, string) 	    	   (DataWrapper, bool)
+	DeleteDataFromCollectionById(string, string) 		   (bool)
+
+	GetNamedTypes()             ([]NamedType, bool)
+	GetNamedTypeById(string)    (NamedType, bool)
+	CreateNamedType(string, string) (NamedType, bool)
 	DeleteNamedTypeById(string) (bool)
 }
 

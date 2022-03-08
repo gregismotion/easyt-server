@@ -2,6 +2,7 @@
 package basic
 
 import (
+	"fmt"
 	"encoding/json"
 	"bytes"
 )
@@ -43,9 +44,10 @@ func (t BasicType) String() (str string) {
 }
 
 // Convert a string to it's BasicType counterpart
-func StrToBasicType(str string) (BasicType, bool) {
-	typ, ok := StrToBasicTypes[str]
-	return typ, ok
+func StrToBasicType(str string) (typ BasicType, ok bool) {
+	typ, ok = StrToBasicTypes[str]
+	fmt.Println(ok)
+	return
 }
 
 // Convert a BasicType to JSON
