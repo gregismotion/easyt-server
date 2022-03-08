@@ -50,7 +50,7 @@ func (memory *MemoryStorage) CreateCollectionByName(name string, namedTypeIds []
 func (memory MemoryStorage) GetCollectionById(id string) (*storage.Collection, error) {
 	var err error
 	collectionPointer, ok := memory.getCollectionPointerById(id)
-	if !ok { err = fmt.Errorf("get collection: %q: %v", id, err) }
+	if !ok { err = fmt.Errorf("get collection: %q: %v", id, storage.ErrFailedSearch) }
 	return collectionPointer, err
 }
 

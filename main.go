@@ -74,7 +74,7 @@ func createCollection(c *gin.Context) {
 }
 
 func getCollection(c *gin.Context) { // TODO: add return limit of data, maybe only send references to data
-	id := c.Param("name")
+	id := c.Param("id")
 	if id != "" {
 		collection, err := storageBackend.GetCollectionById(id)
 		respond(c, &collection, err)
@@ -99,7 +99,7 @@ type DataRequestBody struct {
 }
 func addData(c *gin.Context) {
 	var body DataRequestBody
-	id := c.Param("id")
+	id := c.Param("colId")
 	if id != "" {
 		if c.BindJSON(&body) != nil {
 			time := time.Now() // TODO: get time from body
