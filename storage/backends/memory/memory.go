@@ -4,7 +4,7 @@ import (
 	"git.freeself.one/thegergo02/easyt/storage"
 	"git.freeself.one/thegergo02/easyt/basic"
 	
-	//"fmt"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,45 +23,40 @@ func New() *MemoryStorage {
 		})
 }
 
-func (memory MemoryStorage) GetCollectionReferences() (references []storage.NameReference, ok bool) {
-	ok = true
+func (memory MemoryStorage) GetCollectionReferences() (*[]storage.NameReference, error) {
+	var references []storage.NameReference
 	for _, collection := range memory.collections {
 		references = append(references, storage.NameReference { Id: collection.Id, Name: collection.Name })
 	}
-	return
+	return &references, nil
 }
 
-func (memory MemoryStorage) IsCollectionExistentById(id string) bool {
-	for _, collection := range memory.collections {
-		if collection.Id == id {
-			return true
-		}
-	}
-	return false
-}
-
-func (memory *MemoryStorage) CreateCollectionByName(name string, namedTypeIds []string) (storage.NameReference, bool) {
+func (memory *MemoryStorage) CreateCollectionByName(name string, namedTypeIds []string) (*storage.NameReference, error) {
 	namedTypes, ok := memory.getNamedTypesByIds(namedTypeIds)
 	if ok {
 		collection := storage.Collection {
 			Id: uuid.New().String(),
 			Name: name,
+			Data: make(storage.DataWrappers),
 		}
 		for _, namedType := range namedTypes {
 			collection.Data[namedType] = make([]storage.DataWrapper, 0)
 		}
 		memory.collections = append(memory.collections, collection)
-		return storage.NameReference { Id: collection.Id, Name: collection.Name }, true
-	} else { return storage.NameReference{}, false }
+		return &(storage.NameReference { Id: collection.Id, Name: collection.Name }), nil
+	} else { return nil, fmt.Errorf("create collection: %q: Failed to get namedtype!", name) }
 }
 
-func (memory MemoryStorage) GetCollectionById(id string) (storage.Collection, bool) {
+func (memory MemoryStorage) GetCollectionById(id string) (*storage.Collection, error) {
+	var err error
 	collectionPointer, ok := memory.getCollectionPointerById(id)
-	return *collectionPointer, ok
+	if !ok { err = fmt.Errorf("get collection: %q: %v", id, err) }
+	return collectionPointer, err
 }
 
-func (memory *MemoryStorage) DeleteCollectionById(id string) (ok bool) {
+func (memory *MemoryStorage) DeleteCollectionById(id string) (err error) {
 	i := 0
+	ok := false
 	for _, elem := range memory.collections {
 		if elem.Id != id {
 			memory.collections[i] = elem
@@ -70,43 +65,48 @@ func (memory *MemoryStorage) DeleteCollectionById(id string) (ok bool) {
 			ok = true
 		}
 	}
+	if !ok { err = fmt.Errorf("delete collection: %q: %w", id, storage.ErrFailedDeletion) }
 	memory.collections = memory.collections[:i]
 	return
 }
 
 
-func (memory *MemoryStorage) AddDataToCollectionById(namedTypeId string, time time.Time, value string, id string) (storage.DataWrapper, bool) {
+func (memory *MemoryStorage) AddDataToCollectionById(namedTypeId string, time time.Time, value string, id string) (*storage.DataWrapper, error) {
 	collection, ok := memory.getCollectionPointerById(id)
-	namedType, ok1 := memory.GetNamedTypeById(namedTypeId)
-	if ok && ok1 {
-		dataWrapper := storage.DataWrapper {
-			Id: uuid.New().String(),
-			Time: time,
-			Value: value,
-		}
-		(*collection).Data[namedType] = append((*collection).Data[namedType], dataWrapper)
-		return dataWrapper, true
-	} else {
-		return storage.DataWrapper{}, false
-	}
-}
-
-func (memory MemoryStorage) GetDataInCollectionById(colId string, dataId string) (storage.DataWrapper, bool) {
-	collection, ok := memory.GetCollectionById(colId)
+	namedType, err := memory.GetNamedTypeById(namedTypeId)
 	if ok {
-		for _, dataWrappers := range collection.Data {
-			for _, data := range dataWrappers {
-				if data.Id == dataId {
-					return data, true
-				}
-			}	
+		if err == nil {
+			dataWrapper := storage.DataWrapper {
+				Id: uuid.New().String(),
+				Time: time,
+				Value: value,
+			}
+			(*collection).Data[*namedType] = append((*collection).Data[*namedType], dataWrapper)
+			return &dataWrapper, nil
+		} else {
+			return nil, fmt.Errorf("add data: namedtype: %q: %w", namedTypeId, storage.ErrFailedSearch)
 		}
+	} else {
+		return nil, fmt.Errorf("add data: collection: %q: %w", id, storage.ErrFailedSearch)
 	}
-	return storage.DataWrapper{}, false
 }
 
-func (memory *MemoryStorage) DeleteDataFromCollectionById(colId string, dataId string) (bool) {
+func (memory MemoryStorage) GetDataInCollectionById(colId string, dataId string) (*storage.DataWrapper, error) {
+	collection, err := memory.GetCollectionById(colId)
+	if err != nil { return nil, fmt.Errorf("get data: collection: %q: %w", colId, storage.ErrFailedSearch) }
+	for _, dataWrappers := range collection.Data {
+		for _, data := range dataWrappers {
+			if data.Id == dataId {
+				return &data, nil
+			}
+		}	
+	}
+	return nil, fmt.Errorf("get data: %q: %w", dataId, storage.ErrFailedSearch)
+}
+
+func (memory *MemoryStorage) DeleteDataFromCollectionById(colId string, dataId string) (error) {
 	last := false
+	found := false
 	collection, ok := memory.getCollectionPointerById(colId)
 	if ok {
 		for namedType, _ := range (*collection).Data {
@@ -117,46 +117,49 @@ func (memory *MemoryStorage) DeleteDataFromCollectionById(colId string, dataId s
 						(*collection).Data[namedType][i] = elem
 						i++
 						last = true
+					} else {
+						found = true
 					}
 				}
 				(*collection).Data[namedType] = (*collection).Data[namedType][:i]
-			} else { return true }
+			} else { if found { return nil } else { return fmt.Errorf("delete data: %q: %w", dataId, storage.ErrFailedDeletion) } }
 		}
 	}
-	return false
+	return fmt.Errorf("delete data: collection: %q: %w", colId, storage.ErrFailedSearch)
 }
 
 
-func (memory MemoryStorage) GetNamedTypes() ([]storage.NamedType, bool) {
-	return memory.namedTypes, true
+func (memory MemoryStorage) GetNamedTypes() (*[]storage.NamedType, error) {
+	return &(memory.namedTypes), nil
 }
 
-func (memory MemoryStorage) GetNamedTypeById(id string) (storage.NamedType, bool) {
+func (memory MemoryStorage) GetNamedTypeById(id string) (*storage.NamedType, error) {
 	for _, namedType := range memory.namedTypes {
 		if namedType.Id == id {
-			return namedType, true
+			return &namedType, nil
 		}
 	}
-	return storage.NamedType{}, false
+	return nil, fmt.Errorf("get namedtype: %q: %w", id, storage.ErrFailedSearch)
 }
 
-func (memory *MemoryStorage) CreateNamedType(name string, basicName string) (namedType storage.NamedType, ok bool) {
-	var basicType basic.BasicType
-	basicType, ok = basic.StrToBasicType(basicName)
+func (memory *MemoryStorage) CreateNamedType(name string, basicName string) (*storage.NamedType, error) {
+	basicType, ok := basic.StrToBasicType(basicName)
 	if ok {
-		namedType = storage.NamedType {
+		namedType := storage.NamedType {
 			Id: uuid.New().String(),
 			Name: name,
 			Type: basicType,
 		}
 		memory.namedTypes = append(memory.namedTypes, namedType)
+		return &namedType, nil
+	} else {
+		return nil, fmt.Errorf("create namedtype: %q, %q: Failed to convert str to basictype!", name, basicName)
 	}
-	return
-
 }
 
-func (memory *MemoryStorage) DeleteNamedTypeById(id string) (ok bool) {
+func (memory *MemoryStorage) DeleteNamedTypeById(id string) (err error) {
 	i := 0
+	ok := false
 	for _, elem := range memory.namedTypes {
 		if elem.Id != id {
 			memory.namedTypes[i] = elem
@@ -166,19 +169,17 @@ func (memory *MemoryStorage) DeleteNamedTypeById(id string) (ok bool) {
 		}
 	}
 	memory.namedTypes = memory.namedTypes[:i]
+	if !ok { err = fmt.Errorf("delete namedtype: %q: %w", id, storage.ErrFailedDeletion) }
 	return
 }
 
 
 func (memory MemoryStorage) getNamedTypesByIds(ids []string) (namedTypes []storage.NamedType, ok bool) {
-	ok = true
 	for _, id := range ids {
-		namedType, ok1 := memory.GetNamedTypeById(id)
-		if ok1 {
-			namedTypes = append(namedTypes, namedType)
-		} else {
-			ok = false
-			return
+		namedType, err := memory.GetNamedTypeById(id)
+		if err == nil {
+			namedTypes = append(namedTypes, *namedType)
+			ok = true
 		}
 	}
 	return

@@ -45,13 +45,18 @@ func main() {
 	r.Run(host)
 }
 
-func getCollections(c *gin.Context) {
-	references, ok := storageBackend.GetCollectionReferences()
-	if ok {
-		c.IndentedJSON(http.StatusOK, references)
+type any interface{} // NOTE: remove in Go 1.18, default behaviour there
+func respond(c *gin.Context, response any, err error) {
+	if err == nil {
+		c.IndentedJSON(http.StatusOK, response)
 	} else {
-		c.IndentedJSON(http.StatusOK, gin.H{"error": "Couldn't get collection references!"})
+		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
+}
+
+func getCollections(c *gin.Context) {
+	references, err := storageBackend.GetCollectionReferences()
+	respond(c, &references, err)
 }
 
 type CollectionRequestBody struct {
@@ -61,25 +66,18 @@ type CollectionRequestBody struct {
 func createCollection(c *gin.Context) {
 	var body CollectionRequestBody
 	if err := c.BindJSON(&body); err == nil {
-			if reference, ok := storageBackend.CreateCollectionByName(body.Name, body.NamedTypes); ok {
-				c.IndentedJSON(http.StatusOK, reference)
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't create collection!"})
-			}
+		reference, err := storageBackend.CreateCollectionByName(body.Name, body.NamedTypes)
+		respond(c, &reference, err)
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.String()})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err})
 	}
 }
 
-func getCollection(c *gin.Context) { // TODO: add return limit of data
+func getCollection(c *gin.Context) { // TODO: add return limit of data, maybe only send references to data
 	id := c.Param("name")
 	if id != "" {
-		collection, ok := storageBackend.GetCollectionById(id)
-		if ok {
-			c.IndentedJSON(http.StatusOK, collection)
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't find collection with this ID!"})
-		}
+		collection, err := storageBackend.GetCollectionById(id)
+		respond(c, &collection, err)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID passed!"})
 	}
@@ -88,11 +86,7 @@ func getCollection(c *gin.Context) { // TODO: add return limit of data
 func deleteCollection(c *gin.Context) {
 	id := c.Param("id")
 	if id != "" {
-		if storageBackend.DeleteCollectionById(id) {
-			c.String(http.StatusOK, "") // NOTE: maybe some message would be appropiate? consult the do- oh wait
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't delete collection!"})
-		}
+		respond(c, "ok", storageBackend.DeleteCollectionById(id))	
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
 	}
@@ -109,11 +103,8 @@ func addData(c *gin.Context) {
 	if id != "" {
 		if c.BindJSON(&body) != nil {
 			time := time.Now() // TODO: get time from body
-			if data, ok := storageBackend.AddDataToCollectionById(body.NamedType, time, body.Value, id); ok {
-				c.IndentedJSON(http.StatusCreated, data)
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't create data!"})
-			}
+			data, err := storageBackend.AddDataToCollectionById(body.NamedType, time, body.Value, id)
+			respond(c, &data, err)
 		} else {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
 		}
@@ -125,20 +116,12 @@ func addData(c *gin.Context) {
 func getData(c *gin.Context) {
 	colId := c.Param("colId")
 	if colId != "" {
-		if storageBackend.IsCollectionExistentById(colId) {
-			dataId := c.Param("dataId")
-			if dataId != "" {
-				data, ok := storageBackend.GetDataInCollectionById(colId, dataId)
-				if ok {
-					c.IndentedJSON(http.StatusOK, data)
-				} else {
-					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
-				}
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
-			}
+		dataId := c.Param("dataId")
+		if dataId != "" {
+			data, err := storageBackend.GetDataInCollectionById(colId, dataId)
+			respond(c, &data, err)
 		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
 		}
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No collection ID specified!"})
@@ -148,19 +131,11 @@ func getData(c *gin.Context) {
 func deleteData(c *gin.Context) {
 	colId := c.Param("colId")
 	if colId != "" {
-		if storageBackend.IsCollectionExistentById(colId) {
-			dataId := c.Param("dataId")
-			if dataId != "" {
-				if storageBackend.DeleteDataFromCollectionById(colId, dataId) {
-					c.IndentedJSON(http.StatusOK, "")
-				} else {
-					c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find data!"})
-				}
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
-			}
+		dataId := c.Param("dataId")
+		if dataId != "" {
+			respond(c, "ok", storageBackend.DeleteDataFromCollectionById(colId, dataId))
 		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find collection!"})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
 		}
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
@@ -169,12 +144,8 @@ func deleteData(c *gin.Context) {
 
 
 func getNamedTypes(c *gin.Context) {
-	namedTypes, ok := storageBackend.GetNamedTypes()
-	if ok {
-		c.IndentedJSON(http.StatusOK, namedTypes)
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't get named types!"})
-	}
+	namedTypes, err := storageBackend.GetNamedTypes()
+	respond(c, &namedTypes, err)
 }
 
 type NamedTypeRequestBody struct {
@@ -183,12 +154,9 @@ type NamedTypeRequestBody struct {
 }
 func createNamedType(c *gin.Context) {
 	var body NamedTypeRequestBody
-	if err := c.BindJSON(&body); err == nil {
-		if namedType, ok := storageBackend.CreateNamedType(body.Name, body.BasicType); ok {
-			c.IndentedJSON(http.StatusOK, namedType)
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Couldn't create named type!"})
-		}
+	if err := c.BindJSON(&body); err == nil && body.Name != "" {
+		namedType, err := storageBackend.CreateNamedType(body.Name, body.BasicType)
+		respond(c, &namedType, err)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
 	}
@@ -197,12 +165,8 @@ func createNamedType(c *gin.Context) {
 func getNamedType(c *gin.Context) {
 	id := c.Param("id")
 	if id != "" {
-		namedType, ok := storageBackend.GetNamedTypeById(id)
-		if ok {
-			c.IndentedJSON(http.StatusOK, namedType)
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't find named type!"})
-		}
+		namedType, err := storageBackend.GetNamedTypeById(id)
+		respond(c, &namedType, err)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
 	}
@@ -211,11 +175,7 @@ func getNamedType(c *gin.Context) {
 func deleteNamedType(c *gin.Context) {
 	id := c.Param("id")
 	if id != "" {
-		if storageBackend.DeleteNamedTypeById(id) {
-			c.String(http.StatusOK, "") // NOTE: maybe some message would be appropiate? consult the do- oh wait
-		} else {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "Couldn't delete named type!"})
-		}
+		respond(c, "ok", storageBackend.DeleteNamedTypeById(id))
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
 	}

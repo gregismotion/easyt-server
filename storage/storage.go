@@ -1,22 +1,27 @@
 package storage
 
-import "time"
+import (
+	"time"
+	"errors"
+)
+
+var ErrFailedDeletion = errors.New("Failed deletion!")
+var ErrFailedSearch = errors.New("Failed search!")
 
 type Storage interface {
-	GetCollectionReferences()               	    ([]NameReference, bool)
-	IsCollectionExistentById(string)        	    (bool)
-	CreateCollectionByName(string, []string)   	    (NameReference, bool)
-	GetCollectionById(string) 			    (Collection, bool)
-	DeleteCollectionById(string)   			    (bool)
+	GetCollectionReferences()               	    (*[]NameReference, error)
+	CreateCollectionByName(string, []string)   	    (*NameReference, error)
+	GetCollectionById(string) 			    (*Collection, error)
+	DeleteCollectionById(string)   			    (error)
 	
-	AddDataToCollectionById(string, time.Time, string, string) (DataWrapper, bool)
-	GetDataInCollectionById(string, string) 	    	   (DataWrapper, bool)
-	DeleteDataFromCollectionById(string, string) 		   (bool)
+	AddDataToCollectionById(string, time.Time, string, string) (*DataWrapper, error)
+	GetDataInCollectionById(string, string) 	    	   (*DataWrapper, error)
+	DeleteDataFromCollectionById(string, string) 		   (error)
 
-	GetNamedTypes()             ([]NamedType, bool)
-	GetNamedTypeById(string)    (NamedType, bool)
-	CreateNamedType(string, string) (NamedType, bool)
-	DeleteNamedTypeById(string) (bool)
+	GetNamedTypes()             (*[]NamedType, error)
+	GetNamedTypeById(string)    (*NamedType, error)
+	CreateNamedType(string, string) (*NamedType, error)
+	DeleteNamedTypeById(string) (error)
 }
 
 
