@@ -102,12 +102,12 @@ func addData(c *gin.Context) {
 	var body DataRequestBody
 	id := c.Param("colId")
 	if id != "" {
-		if c.BindJSON(&body) != nil {
+		if err := c.BindJSON(&body); err == nil {
 			time := time.Now() // TODO: get time from body
 			data, err := storageBackend.AddDataToCollectionById(body.NamedType, time, body.Value, id)
 			respond(c, &data, err)
 		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
+			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
@@ -155,11 +155,11 @@ type NamedTypeRequestBody struct {
 }
 func createNamedType(c *gin.Context) {
 	var body NamedTypeRequestBody
-	if err := c.BindJSON(&body); err == nil && body.Name != "" {
+	if err := c.BindJSON(&body); err == nil {
 		namedType, err := storageBackend.CreateNamedType(body.Name, body.BasicType)
 		respond(c, &namedType, err)
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "Bad request body!"})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
 
