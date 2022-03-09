@@ -28,6 +28,7 @@ func (memory MemoryStorage) GetCollectionReferences() (*[]storage.NameReference,
 	for _, collection := range memory.collections {
 		references = append(references, storage.NameReference { Id: collection.Id, Name: collection.Name })
 	}
+	if references == nil { references = make([]storage.NameReference, 0) }
 	return &references, nil
 }
 
