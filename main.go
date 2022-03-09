@@ -70,7 +70,7 @@ func createCollection(c *gin.Context) {
 		reference, err := storageBackend.CreateCollectionByName(body.Name, body.NamedTypes)
 		respond(c, &reference, err)
 	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err})
+		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
 
