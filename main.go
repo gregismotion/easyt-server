@@ -13,10 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var storageBackend storage.Storage
-func main() {
-	r := gin.Default()
-	
+func setupRouter() (r *gin.Engine) {
+	r = gin.Default()
 	v1 := r.Group("/api/v1") 
 	{
 		col := v1.Group("/collection")
@@ -38,11 +36,14 @@ func main() {
 			typ.GET("/basic", getBasicTypes)
 		}
 	}
+	return
+}
 
-	host := "localhost:8080"
-
+var storageBackend storage.Storage
+func main() {
 	storageBackend = memory.New()
-	r.Run(host)
+	host := "localhost:8080"
+	setupRouter().Run(host)
 }
 
 type any interface{} // NOTE: remove in Go 1.18, default behaviour there
