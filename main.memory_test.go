@@ -109,6 +109,7 @@ func TestCollection(t *testing.T) { // Try somehow decoupling tests
 	// delete collection
 	w, err = deleteTestCollection(id)
 	assert.Equal(t, 200, w.Code)
+	// check if collection got created
 	w = makeRequest( "GET", "/api/v1/collection/")
 	b, _ = ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
