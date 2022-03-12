@@ -106,27 +106,29 @@ func (memory MemoryStorage) GetDataInCollectionById(colId string, dataId string)
 }
 
 func (memory *MemoryStorage) DeleteDataFromCollectionById(colId string, dataId string) (error) {
-	last := false
 	found := false
 	collection, ok := memory.getCollectionPointerById(colId)
 	if ok {
 		for namedType, _ := range (*collection).Data {
-			if !last {
+			if !found {
 				i := 0
 				for _, elem := range (*collection).Data[namedType] {
 					if elem.Id != dataId {
 						(*collection).Data[namedType][i] = elem
 						i++
-						last = true
 					} else {
 						found = true
 					}
 				}
 				(*collection).Data[namedType] = (*collection).Data[namedType][:i]
-			} else { if found { return nil } else { return fmt.Errorf("delete data: %q: %w", dataId, storage.ErrFailedDeletion) } }
+			}
 		}
+	} else {
+		return fmt.Errorf("delete data: collection: %q: %w", colId, storage.ErrFailedSearch)
 	}
-	return fmt.Errorf("delete data: collection: %q: %w", colId, storage.ErrFailedSearch)
+	if !found {
+		return fmt.Errorf("delete data: %q: %w", dataId, storage.ErrFailedDeletion)
+	} else { return nil }
 }
 
 
