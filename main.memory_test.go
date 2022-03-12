@@ -1,6 +1,7 @@
 package main
 
 import (
+	"git.freeself.one/thegergo02/easyt/body"
 	"git.freeself.one/thegergo02/easyt/storage"
 	"git.freeself.one/thegergo02/easyt/storage/backends/memory"
 	
@@ -12,6 +13,7 @@ import (
 	"io/ioutil"
 	"fmt"
 	"strings"
+	"bytes"
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
@@ -40,11 +42,16 @@ func makeRequest(method string, path string, body ...io.Reader) (w *httptest.Res
 	return
 }
 
-func createTestCollection(name string, id0 string, id1 string, id2 string) (*httptest.ResponseRecorder, string, error) {
-	w := makeRequest( "POST", "/api/v1/collections/", strings.NewReader(fmt.Sprintf("{\"name\":%q,\"named_types\":[%q, %q, %q]}", name, id0, id1, id2)))
-	var resp map[string]string
-	err := json.Unmarshal([]byte(w.Body.String()), &resp)
-	return w, resp["id"], err
+func createTestCollection(name string, namedTypes []string) (*httptest.ResponseRecorder, string, error) {
+	b, err := json.Marshal(body.CollectionRequestBody{Name: name, NamedTypes: namedTypes})
+	if err == nil {
+		w := makeRequest( "POST", "/api/v1/collections/", bytes.NewReader(b))
+		var resp map[string]string
+		err := json.Unmarshal([]byte(w.Body.String()), &resp)
+		return w, resp["id"], err
+	} else {
+		return nil, "", err
+	}
 }
 func deleteTestCollection(id string) (*httptest.ResponseRecorder, error) {
 	w := makeRequest("DELETE", fmt.Sprintf("/api/v1/collections/%s", id))
@@ -52,10 +59,15 @@ func deleteTestCollection(id string) (*httptest.ResponseRecorder, error) {
 }
 
 func createTestNamedType(name string, basicType string) (*httptest.ResponseRecorder, string, error) {
-	w := makeRequest( "POST", "/api/v1/types/named", strings.NewReader(fmt.Sprintf("{\"name\":%q,\"basic_type\":%q}", name, basicType)))
-	var resp map[string]string
-	err := json.Unmarshal([]byte(w.Body.String()), &resp)
-	return w, resp["id"], err
+	b, err := json.Marshal(body.NamedTypeRequestBody{Name: name, BasicType: basicType})
+	if err == nil {
+		w := makeRequest( "POST", "/api/v1/types/named", bytes.NewReader(b))
+		var resp map[string]string
+		err = json.Unmarshal([]byte(w.Body.String()), &resp)
+		return w, resp["id"], err
+	} else {
+		return nil, "", err
+	}
 }
 
 
@@ -90,19 +102,21 @@ func TestGetCollections(t *testing.T) {
 }
 
 func TestCollection(t *testing.T) { // Try somehow decoupling tests
+	var err error
 	storageBackend = getStorageBackend()
 	// have to create named types
-	_, id0, err0 := createTestNamedType("weight", "num")
-	_, id1, err1 := createTestNamedType("height", "num")
-	_, id2, err2 := createTestNamedType("comment", "str")
-	assert.Nil(t, err0)
-	assert.Nil(t, err1)
-	assert.Nil(t, err2)
-	w, id, err := createTestCollection("body", id0, id1, id2)
-	assert.Nil(t, err)
+	ids := make([]string, 3)
+	_, ids[0], err = createTestNamedType("weight", "num")
+	_, ids[1], err = createTestNamedType("height", "num")
+	_, ids[2], err = createTestNamedType("comment", "str")
+	assert.Nil(t, err, "Failed to create named type(s)!")
+	var w *httptest.ResponseRecorder
+	var id string
+	w, id, err = createTestCollection("body", ids)
+	assert.Nil(t, err, "Failed to create collection")
 	assert.Equal(t, 200, w.Code)
 	// check if collection got created
-	w = makeRequest( "GET", fmt.Sprintf("/api/v1/collections/%s", id))
+	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/%s", id))
 	b, _ := ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
 	assert.True(t, strings.Contains(string(b), "body"))
@@ -110,7 +124,7 @@ func TestCollection(t *testing.T) { // Try somehow decoupling tests
 	w, err = deleteTestCollection(id)
 	assert.Equal(t, 200, w.Code)
 	// check if collection got created
-	w = makeRequest( "GET", "/api/v1/collections/")
+	w = makeRequest("GET", "/api/v1/collections/")
 	b, _ = ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "[]", string(b))
