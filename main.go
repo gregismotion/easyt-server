@@ -18,17 +18,20 @@ func setupRouter() (r *gin.Engine) {
 	r = gin.Default()
 	v1 := r.Group("/api/v1") 
 	{
-		col := v1.Group("/collection")
+		col := v1.Group("/collections")
 		{
 			col.GET("/", getCollections)
 			col.POST("/", createCollection)
 			col.GET("/:id", getCollection)
 			col.DELETE("/:id", deleteCollection)
-			col.POST("/:colId", addData)
-			col.GET("/data/:colId/:dataId", getData)
-			col.DELETE("/data/:colId/:dataId", deleteData)
+			data := col.Group("/data")
+			{
+			      data.GET("/:colId/:dataId", getData)
+			      data.POST("/:colId", addData)
+			      data.DELETE("/:colId/:dataId", deleteData)
+			}
 		}
-		typ := v1.Group("/type")
+		typ := v1.Group("/types")
 		{
 			typ.GET("/named", getNamedTypes)
 			typ.POST("/named", createNamedType)

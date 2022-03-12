@@ -41,18 +41,18 @@ func makeRequest(method string, path string, body ...io.Reader) (w *httptest.Res
 }
 
 func createTestCollection(name string, id0 string, id1 string, id2 string) (*httptest.ResponseRecorder, string, error) {
-	w := makeRequest( "POST", "/api/v1/collection/", strings.NewReader(fmt.Sprintf("{\"name\":%q,\"named_types\":[%q, %q, %q]}", name, id0, id1, id2)))
+	w := makeRequest( "POST", "/api/v1/collections/", strings.NewReader(fmt.Sprintf("{\"name\":%q,\"named_types\":[%q, %q, %q]}", name, id0, id1, id2)))
 	var resp map[string]string
 	err := json.Unmarshal([]byte(w.Body.String()), &resp)
 	return w, resp["id"], err
 }
 func deleteTestCollection(id string) (*httptest.ResponseRecorder, error) {
-	w := makeRequest("DELETE", fmt.Sprintf("/api/v1/collection/%s", id))
+	w := makeRequest("DELETE", fmt.Sprintf("/api/v1/collections/%s", id))
 	return w, nil
 }
 
 func createTestNamedType(name string, basicType string) (*httptest.ResponseRecorder, string, error) {
-	w := makeRequest( "POST", "/api/v1/type/named", strings.NewReader(fmt.Sprintf("{\"name\":%q,\"basic_type\":%q}", name, basicType)))
+	w := makeRequest( "POST", "/api/v1/types/named", strings.NewReader(fmt.Sprintf("{\"name\":%q,\"basic_type\":%q}", name, basicType)))
 	var resp map[string]string
 	err := json.Unmarshal([]byte(w.Body.String()), &resp)
 	return w, resp["id"], err
@@ -83,7 +83,7 @@ func TestRespondError(t *testing.T) {
 
 func TestGetCollections(t *testing.T) {
 	storageBackend = getStorageBackend()
-	w := makeRequest( "GET", "/api/v1/collection/")
+	w := makeRequest( "GET", "/api/v1/collections/")
 	b, _ := ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "[]", string(b))
@@ -102,7 +102,7 @@ func TestCollection(t *testing.T) { // Try somehow decoupling tests
 	assert.Nil(t, err)
 	assert.Equal(t, 200, w.Code)
 	// check if collection got created
-	w = makeRequest( "GET", fmt.Sprintf("/api/v1/collection/%s", id))
+	w = makeRequest( "GET", fmt.Sprintf("/api/v1/collections/%s", id))
 	b, _ := ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
 	assert.True(t, strings.Contains(string(b), "body"))
@@ -110,7 +110,7 @@ func TestCollection(t *testing.T) { // Try somehow decoupling tests
 	w, err = deleteTestCollection(id)
 	assert.Equal(t, 200, w.Code)
 	// check if collection got created
-	w = makeRequest( "GET", "/api/v1/collection/")
+	w = makeRequest( "GET", "/api/v1/collections/")
 	b, _ = ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "[]", string(b))
