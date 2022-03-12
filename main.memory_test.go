@@ -61,7 +61,7 @@ func deleteTestCollection(id string) (*httptest.ResponseRecorder, error) {
 func createTestNamedType(name string, basicType string) (*httptest.ResponseRecorder, string, error) {
 	b, err := json.Marshal(body.NamedTypeRequestBody{Name: name, BasicType: basicType})
 	if err == nil {
-		w := makeRequest( "POST", "/api/v1/types/named", bytes.NewReader(b))
+		w := makeRequest( "POST", "/api/v1/types/named/", bytes.NewReader(b))
 		var resp map[string]string
 		err = json.Unmarshal([]byte(w.Body.String()), &resp)
 		return w, resp["id"], err
@@ -100,11 +100,24 @@ func TestGetCollections(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "[]", string(b))
 }
-
-func TestNamedType(t *testing.T) {
-
+func TestGetNamedTypes(t *testing.T) {
+	w := makeRequest( "GET", "/api/v1/types/named/")
+	b, _ := ioutil.ReadAll(w.Body)
+	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, "[]", string(b))
 }
 
+func TestNamedType(t *testing.T) {
+	// create named type
+	w, id, err := createTestNamedType(testResponse, "num")
+	assert.Nil(t, err)
+	assert.Equal(t, 201, w.Code)
+	// get named type
+	w = makeRequest("GET", fmt.Sprintf("/api/v1/types/named/%s", id))
+	assert.Equal(t, 200, w.Code)
+	b, _ := ioutil.ReadAll(w.Body)
+	assert.True(t, strings.Contains(string(b), testResponse))
+}
 func TestCollection(t *testing.T) {
 	var err error
 	storageBackend = getStorageBackend()
@@ -121,8 +134,8 @@ func TestCollection(t *testing.T) {
 	assert.Equal(t, 201, w.Code)
 	// check if collection got created
 	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/%s", id))
-	b, _ := ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
+	b, _ := ioutil.ReadAll(w.Body)
 	assert.True(t, strings.Contains(string(b), "body"))
 	// delete collection
 	w, err = deleteTestCollection(id)
