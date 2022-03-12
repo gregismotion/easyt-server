@@ -150,7 +150,7 @@ func createNamedType(c *gin.Context) {
 	var body body.NamedTypeRequestBody
 	if err := c.BindJSON(&body); err == nil {
 		namedType, err := storageBackend.CreateNamedType(body.Name, body.BasicType)
-		respond(c, &namedType, err)
+		respond(c, &namedType, err, http.StatusCreated)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
