@@ -74,6 +74,22 @@ func deleteTestNamedType(id string) (*httptest.ResponseRecorder, error) {
 	return w, nil
 }
 
+func createTestData(colId string, namedType string, value string) (*httptest.ResponseRecorder, string, error) {
+	b, err := json.Marshal(body.DataRequestBody{NamedType: namedType, Value: value})
+	if err == nil {
+		w := makeRequest("POST", fmt.Sprintf("/api/v1/collections/data/%s", colId), bytes.NewReader(b))
+		var resp map[string]string
+		err = json.Unmarshal([]byte(w.Body.String()), &resp)
+		return w, resp["id"], err
+	} else {
+		return nil, "", err
+	}
+}
+func deleteTestData(colId, dataId string) (*httptest.ResponseRecorder, error) {
+	w := makeRequest("DELETE", fmt.Sprintf("/api/v1/collections/data/%s/%s", colId, dataId))
+	return w, nil
+}
+
 
 var r = setupRouter()
 
@@ -165,4 +181,34 @@ func TestCollection(t *testing.T) {
 	b, _ = ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "[]", string(b))
+}
+
+func TestData(t *testing.T) {
+	storageBackend = getStorageBackend()
+	// create collection
+	namedIds := make([]string, 2)
+	_, namedIds[0], _ = createTestNamedType("weight", "num")
+	_, namedIds[1], _ = createTestNamedType("comment", "str")
+	w, colId, err := createTestCollection("body", namedIds)
+	ids := make([]string, 3)
+	w, ids[0], err = createTestData(colId, namedIds[0], "5")
+	w, ids[1], err = createTestData(colId, namedIds[0], "10")
+	w, ids[2], err = createTestData(colId, namedIds[1], "lol")
+	assert.Equal(t, 201, w.Code)
+	assert.Nil(t, err)
+	// check for a data
+	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/data/%s/%s", colId, ids[0]))
+	assert.Equal(t, 200, w.Code)
+	assert.Nil(t, err)
+	b, _ := ioutil.ReadAll(w.Body)
+	assert.True(t, strings.Contains(string(b), ids[0]))
+	// delete a data
+	w, err = deleteTestData(colId, ids[2])
+	assert.Equal(t, 200, w.Code)
+	assert.Nil(t, err)
+	// check if deletion worked
+	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/%s", colId))
+	assert.Equal(t, 200, w.Code)
+	b, _ = ioutil.ReadAll(w.Body)
+	assert.False(t, strings.Contains(string(b), ids[2]))
 }
