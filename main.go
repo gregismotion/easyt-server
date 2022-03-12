@@ -105,7 +105,7 @@ func addData(c *gin.Context) {
 		if err := c.BindJSON(&body); err == nil {
 			time := time.Now() // TODO: get time from body
 			data, err := storageBackend.AddDataToCollectionById(body.NamedType, time, body.Value, id)
-			respond(c, &data, err)
+			respond(c, &data, err, http.StatusCreated)
 		} else {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
