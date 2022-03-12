@@ -33,10 +33,13 @@ func setupRouter() (r *gin.Engine) {
 		}
 		typ := v1.Group("/types")
 		{
-			typ.GET("/named", getNamedTypes)
-			typ.POST("/named", createNamedType)
-			typ.GET("/:id", getNamedType)
-			typ.DELETE("/:id", deleteNamedType)
+			named := typ.Group("/named")
+			{
+				named.GET("/", getNamedTypes)
+				named.POST("/", createNamedType)
+				named.GET("/:id", getNamedType)
+				named.DELETE("/:id", deleteNamedType)
+			}
 			typ.GET("/basic", getBasicTypes)
 		}
 	}
