@@ -4,7 +4,7 @@ package main
 import (
 	"git.freeself.one/thegergo02/easyt/basic"
 	"git.freeself.one/thegergo02/easyt/storage"
-	"git.freeself.one/thegergo02/easyt/bodies"
+	"git.freeself.one/thegergo02/easyt/body"
 	"git.freeself.one/thegergo02/easyt/storage/backends/memory" // NOTE: temporary
 	
 	//"fmt"
@@ -65,7 +65,7 @@ func getCollections(c *gin.Context) {
 }
 
 func createCollection(c *gin.Context) {
-	var body bodies.CollectionRequestBody
+	var body body.CollectionRequestBody
 	if err := c.BindJSON(&body); err == nil {
 		reference, err := storageBackend.CreateCollectionByName(body.Name, body.NamedTypes)
 		respond(c, &reference, err)
@@ -94,7 +94,7 @@ func deleteCollection(c *gin.Context) {
 }
 
 func addData(c *gin.Context) {
-	var body bodies.DataRequestBody
+	var body body.DataRequestBody
 	id := c.Param("colId")
 	if id != "" {
 		if err := c.BindJSON(&body); err == nil {
@@ -145,7 +145,7 @@ func getNamedTypes(c *gin.Context) {
 }
 
 func createNamedType(c *gin.Context) {
-	var body bodies.NamedTypeRequestBody
+	var body body.NamedTypeRequestBody
 	if err := c.BindJSON(&body); err == nil {
 		namedType, err := storageBackend.CreateNamedType(body.Name, body.BasicType)
 		respond(c, &namedType, err)

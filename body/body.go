@@ -1,4 +1,4 @@
-package bodies
+package body
 
 type CollectionRequestBody struct {
 	Name 	     string `json:"name"`
