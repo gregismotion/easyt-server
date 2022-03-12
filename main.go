@@ -51,9 +51,11 @@ func main() {
 }
 
 type any interface{} // NOTE: remove in Go 1.18, default behaviour there
-func respond(c *gin.Context, response any, err error) {
+func respond(c *gin.Context, response any, err error, customSuccessStatus ...int) {
 	if err == nil {
-		c.IndentedJSON(http.StatusOK, response)
+		status := http.StatusOK
+		if customSuccessStatus != nil { status = customSuccessStatus[0] }
+		c.IndentedJSON(status, response)
 	} else {
 		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
@@ -68,7 +70,7 @@ func createCollection(c *gin.Context) {
 	var body body.CollectionRequestBody
 	if err := c.BindJSON(&body); err == nil {
 		reference, err := storageBackend.CreateCollectionByName(body.Name, body.NamedTypes)
-		respond(c, &reference, err)
+		respond(c, &reference, err, http.StatusCreated)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}

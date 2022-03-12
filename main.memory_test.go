@@ -101,7 +101,11 @@ func TestGetCollections(t *testing.T) {
 	assert.Equal(t, "[]", string(b))
 }
 
-func TestCollection(t *testing.T) { // Try somehow decoupling tests
+func TestNamedType(t *testing.T) {
+
+}
+
+func TestCollection(t *testing.T) {
 	var err error
 	storageBackend = getStorageBackend()
 	// have to create named types
@@ -114,7 +118,7 @@ func TestCollection(t *testing.T) { // Try somehow decoupling tests
 	var id string
 	w, id, err = createTestCollection("body", ids)
 	assert.Nil(t, err, "Failed to create collection")
-	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, 201, w.Code)
 	// check if collection got created
 	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/%s", id))
 	b, _ := ioutil.ReadAll(w.Body)
@@ -123,7 +127,7 @@ func TestCollection(t *testing.T) { // Try somehow decoupling tests
 	// delete collection
 	w, err = deleteTestCollection(id)
 	assert.Equal(t, 200, w.Code)
-	// check if collection got created
+	// check if collection got deleted
 	w = makeRequest("GET", "/api/v1/collections/")
 	b, _ = ioutil.ReadAll(w.Body)
 	assert.Equal(t, 200, w.Code)
