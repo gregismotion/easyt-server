@@ -106,6 +106,13 @@ func TestGetNamedTypes(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "[]", string(b))
 }
+func TestGetBasicTypes(t *testing.T) {
+	w := makeRequest( "GET", "/api/v1/types/basic")
+	b, _ := ioutil.ReadAll(w.Body)
+	assert.Equal(t, 200, w.Code)
+	assert.True(t, strings.Contains(string(b), "num"))
+	assert.True(t, strings.Contains(string(b), "str"))
+}
 
 func TestNamedType(t *testing.T) {
 	// create named type
