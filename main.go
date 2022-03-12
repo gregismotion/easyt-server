@@ -4,6 +4,7 @@ package main
 import (
 	"git.freeself.one/thegergo02/easyt/basic"
 	"git.freeself.one/thegergo02/easyt/storage"
+	"git.freeself.one/thegergo02/easyt/bodies"
 	"git.freeself.one/thegergo02/easyt/storage/backends/memory" // NOTE: temporary
 	
 	//"fmt"
@@ -60,12 +61,8 @@ func getCollections(c *gin.Context) {
 	respond(c, &references, err)
 }
 
-type CollectionRequestBody struct {
-	Name 	     string `json:"name"`
-	NamedTypes []string `json:"named_types"`
-}
 func createCollection(c *gin.Context) {
-	var body CollectionRequestBody
+	var body bodies.CollectionRequestBody
 	if err := c.BindJSON(&body); err == nil {
 		reference, err := storageBackend.CreateCollectionByName(body.Name, body.NamedTypes)
 		respond(c, &reference, err)
@@ -93,13 +90,8 @@ func deleteCollection(c *gin.Context) {
 	}
 }
 
-type DataRequestBody struct {
-	Time 	  string `json:"time,omitempty"`
-	NamedType string `json:"named_type"`
-	Value 	  string `json:"value"`
-}
 func addData(c *gin.Context) {
-	var body DataRequestBody
+	var body bodies.DataRequestBody
 	id := c.Param("colId")
 	if id != "" {
 		if err := c.BindJSON(&body); err == nil {
@@ -149,12 +141,8 @@ func getNamedTypes(c *gin.Context) {
 	respond(c, &namedTypes, err)
 }
 
-type NamedTypeRequestBody struct {
-	BasicType string `json:"basic_type"`
-	Name string `json:"name"`
-}
 func createNamedType(c *gin.Context) {
-	var body NamedTypeRequestBody
+	var body bodies.NamedTypeRequestBody
 	if err := c.BindJSON(&body); err == nil {
 		namedType, err := storageBackend.CreateNamedType(body.Name, body.BasicType)
 		respond(c, &namedType, err)
