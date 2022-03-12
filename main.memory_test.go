@@ -69,6 +69,10 @@ func createTestNamedType(name string, basicType string) (*httptest.ResponseRecor
 		return nil, "", err
 	}
 }
+func deleteTestNamedType(id string) (*httptest.ResponseRecorder, error) {
+	w := makeRequest("DELETE", fmt.Sprintf("/api/v1/types/named/%s", id))
+	return w, nil
+}
 
 
 var r = setupRouter()
@@ -124,6 +128,15 @@ func TestNamedType(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 	b, _ := ioutil.ReadAll(w.Body)
 	assert.True(t, strings.Contains(string(b), testResponse))
+	// delete named type
+	w, err = deleteTestNamedType(id)
+	assert.Nil(t, err)
+	assert.Equal(t, 200, w.Code)
+	// check if named type got deleted
+	w = makeRequest("GET", fmt.Sprintf("/api/v1/types/named/"))
+	assert.Equal(t, 200, w.Code)
+	b, _ = ioutil.ReadAll(w.Body)
+	assert.False(t, strings.Contains(string(b), testResponse))
 }
 func TestCollection(t *testing.T) {
 	var err error
