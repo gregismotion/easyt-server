@@ -42,8 +42,8 @@ func makeRequest(method string, path string, body ...io.Reader) (w *httptest.Res
 	return
 }
 
-func createTestCollection(name string, namedTypes []string) (*httptest.ResponseRecorder, string, error) {
-	b, err := json.Marshal(body.CollectionRequestBody{Name: name, NamedTypes: namedTypes})
+func createTestCollection(name string) (*httptest.ResponseRecorder, string, error) {
+	b, err := json.Marshal(body.CollectionRequestBody{Name: name})
 	if err == nil {
 		w := makeRequest( "POST", "/api/v1/collections/", bytes.NewReader(b))
 		var resp map[string]string
@@ -74,19 +74,19 @@ func deleteTestNamedType(id string) (*httptest.ResponseRecorder, error) {
 	return w, nil
 }
 
-func createTestData(colId string, namedType string, value string) (*httptest.ResponseRecorder, string, error) {
-	b, err := json.Marshal(body.DataRequestBody{NamedType: namedType, Value: value})
+func createTestDataPoints(colId string, dataPoints []body.DataRequestBody) (*httptest.ResponseRecorder, *storage.ReferenceGroups, error) {
+	b, err := json.Marshal(dataPoints)
 	if err == nil {
 		w := makeRequest("POST", fmt.Sprintf("/api/v1/collections/data/%s", colId), bytes.NewReader(b))
-		var resp map[string]string
+		var resp storage.ReferenceGroups
 		err = json.Unmarshal([]byte(w.Body.String()), &resp)
-		return w, resp["id"], err
+		return w, &resp, err
 	} else {
-		return nil, "", err
+		return nil, nil, err
 	}
 }
-func deleteTestData(colId, dataId string) (*httptest.ResponseRecorder, error) {
-	w := makeRequest("DELETE", fmt.Sprintf("/api/v1/collections/data/%s/%s", colId, dataId))
+func deleteTestData(colId, groupId, dataId string) (*httptest.ResponseRecorder, error) {
+	w := makeRequest("DELETE", fmt.Sprintf("/api/v1/collections/data/%s/%s/%s", colId, groupId, dataId))
 	return w, nil
 }
 
@@ -157,15 +157,10 @@ func TestNamedType(t *testing.T) {
 func TestCollection(t *testing.T) {
 	var err error
 	storageBackend = getStorageBackend()
-	// have to create named types
-	ids := make([]string, 3)
-	_, ids[0], err = createTestNamedType("weight", "num")
-	_, ids[1], err = createTestNamedType("height", "num")
-	_, ids[2], err = createTestNamedType("comment", "str")
-	assert.Nil(t, err, "Failed to create named type(s)!")
 	var w *httptest.ResponseRecorder
 	var id string
-	w, id, err = createTestCollection("body", ids)
+	// create collection
+	w, id, err = createTestCollection("body")
 	assert.Nil(t, err, "Failed to create collection")
 	assert.Equal(t, 201, w.Code)
 	// check if collection got created
@@ -189,26 +184,39 @@ func TestData(t *testing.T) {
 	namedIds := make([]string, 2)
 	_, namedIds[0], _ = createTestNamedType("weight", "num")
 	_, namedIds[1], _ = createTestNamedType("comment", "str")
-	w, colId, err := createTestCollection("body", namedIds)
-	ids := make([]string, 3)
-	w, ids[0], err = createTestData(colId, namedIds[0], "5")
-	w, ids[1], err = createTestData(colId, namedIds[0], "10")
-	w, ids[2], err = createTestData(colId, namedIds[1], "lol")
+	w, colId, err := createTestCollection("body")
+	var dataGroup *storage.ReferenceGroups 
+	group0 := []body.DataRequestBody { 
+		body.DataRequestBody { NamedType: namedIds[0], Value: "5" },
+		body.DataRequestBody { NamedType: namedIds[1], Value: "lean" },
+	}
+	group1 := []body.DataRequestBody { 
+		body.DataRequestBody { NamedType: namedIds[0], Value: "10" },
+		body.DataRequestBody { NamedType: namedIds[1], Value: "fat" },
+	}
+	w, dataGroup, err = createTestDataPoints(colId, group0)
+	w, dataGroup, err = createTestDataPoints(colId, group1)
 	assert.Equal(t, 201, w.Code)
 	assert.Nil(t, err)
+	assert.Greater(t, len(*dataGroup), 0)
 	// check for a data
-	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/data/%s/%s", colId, ids[0]))
+	var groupId string
+	for k := range *dataGroup {
+		groupId = k
+		break
+	}
+	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/data/%s/%s/%s", colId, groupId, (*dataGroup)[groupId][0].Id))
 	assert.Equal(t, 200, w.Code)
 	assert.Nil(t, err)
 	b, _ := ioutil.ReadAll(w.Body)
-	assert.True(t, strings.Contains(string(b), ids[0]))
+	assert.True(t, strings.Contains(string(b), (*dataGroup)[groupId][0].Id))
 	// delete a data
-	w, err = deleteTestData(colId, ids[2])
+	w, err = deleteTestData(colId, groupId, (*dataGroup)[groupId][1].Id)
 	assert.Equal(t, 200, w.Code)
 	assert.Nil(t, err)
 	// check if deletion worked
 	w = makeRequest("GET", fmt.Sprintf("/api/v1/collections/%s", colId))
 	assert.Equal(t, 200, w.Code)
 	b, _ = ioutil.ReadAll(w.Body)
-	assert.False(t, strings.Contains(string(b), ids[2]))
+	assert.False(t, strings.Contains(string(b), (*dataGroup)[groupId][1].Id))
 }

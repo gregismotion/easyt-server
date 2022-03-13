@@ -9,7 +9,7 @@ import (
 	
 	//"fmt"
 	"net/http"
-	"time"
+	//"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,9 +26,9 @@ func setupRouter() (r *gin.Engine) {
 			col.DELETE("/:id", deleteCollection)
 			data := col.Group("/data")
 			{
-			      data.GET("/:colId/:dataId", getData)
-			      data.POST("/:colId", addData)
-			      data.DELETE("/:colId/:dataId", deleteData)
+				data.GET("/:colId/:groupId/:dataId", getData)
+				data.POST("/:colId", addData)
+				data.DELETE("/:colId/:groupId/:dataId", deleteData)
 			}
 		}
 		typ := v1.Group("/types")
@@ -72,17 +72,17 @@ func getCollections(c *gin.Context) {
 func createCollection(c *gin.Context) {
 	var body body.CollectionRequestBody
 	if err := c.BindJSON(&body); err == nil {
-		reference, err := storageBackend.CreateCollectionByName(body.Name, body.NamedTypes)
+		reference, err := storageBackend.CreateCollectionByName(body.Name)
 		respond(c, &reference, err, http.StatusCreated)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
 
-func getCollection(c *gin.Context) { // TODO: add return limit of data, maybe only send references to data
+func getCollection(c *gin.Context) { // TODO: add return limit of data
 	id := c.Param("id")
 	if id != "" {
-		collection, err := storageBackend.GetCollectionById(id)
+		collection, err := storageBackend.GetReferenceCollectionById(id)
 		respond(c, &collection, err)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID passed!"})
@@ -99,13 +99,25 @@ func deleteCollection(c *gin.Context) {
 }
 
 func addData(c *gin.Context) {
-	var body body.DataRequestBody
+	var dataPoints []body.DataRequestBody
 	id := c.Param("colId")
 	if id != "" {
-		if err := c.BindJSON(&body); err == nil {
-			time := time.Now() // TODO: get time from body
-			data, err := storageBackend.AddDataToCollectionById(body.NamedType, time, body.Value, id)
-			respond(c, &data, err, http.StatusCreated)
+		if err := c.BindJSON(&dataPoints); err == nil {
+			//time := time.Now() // TODO: get time from body
+			namedTypeIds := make([]string, len(dataPoints))
+			values := make([]string, len(dataPoints))
+			for i, dataPoint := range dataPoints { // TODO: move this to another func
+				namedTypeIds[i] = dataPoint.NamedType
+				values[i] = dataPoint.Value
+			}
+			data, groupId, err := storageBackend.AddDataPointsToCollectionById(id, namedTypeIds, values)
+			var dataGroup storage.ReferenceGroups
+			if data != nil {
+				dataGroup = storage.ReferenceGroups {
+					groupId: *data,
+				}
+			}
+			respond(c, dataGroup, err, http.StatusCreated)
 		} else {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		}
@@ -119,8 +131,13 @@ func getData(c *gin.Context) {
 	if colId != "" {
 		dataId := c.Param("dataId")
 		if dataId != "" {
-			data, err := storageBackend.GetDataInCollectionById(colId, dataId)
-			respond(c, &data, err)
+			groupId := c.Param("groupId")
+			if groupId != "" {
+				data, err := storageBackend.GetDataInCollectionById(colId, groupId, dataId)
+				respond(c, &data, err)
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No group ID specified!"})
+			}
 		} else {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
 		}
@@ -134,7 +151,12 @@ func deleteData(c *gin.Context) {
 	if colId != "" {
 		dataId := c.Param("dataId")
 		if dataId != "" {
-			respond(c, "ok", storageBackend.DeleteDataFromCollectionById(colId, dataId))
+			groupId := c.Param("groupId")
+			if groupId != "" {
+				respond(c, "ok", storageBackend.DeleteDataFromCollectionById(colId, groupId, dataId))
+			} else {
+				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No group ID specified!"})
+			}
 		} else {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
 		}

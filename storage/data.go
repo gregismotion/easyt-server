@@ -1,20 +1,27 @@
 package storage
 
 import (
-	"git.freeself.one/thegergo02/easyt/basic"
 	"time"
-	"bytes"
+	//"bytes"
 )
 
-type DataWrapper struct {
+type DataPoint struct {
 	Id string `json:"id"`
 	Time time.Time `json:"time"` // TODO: try tinytime, we don't need nanosecond precision...
 	Value string `json:"value"`
-	Type basic.BasicType `json:"type"`
+	NamedType NamedType `json:"named_type"`
+}
+type DataReference struct {
+	Id string `json:"id"`
+	Time time.Time `json:"time"`
+	NamedType NamedType `json:"named_type"`
 }
 
-// TODO: nicer string formatting, this looks ugly rn
-func (dataWrapper DataWrapper) MarshalJSON() ([]byte, error) {
+/*func (data DataPoint) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("")), nil
+}*/
+
+/*func (dataWrapper DataWrapper) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString(`{"time":"`)
 	buffer.WriteString(dataWrapper.Time.String())
 	buffer.WriteString(`","id":"`)
@@ -25,11 +32,12 @@ func (dataWrapper DataWrapper) MarshalJSON() ([]byte, error) {
 	buffer.WriteString(dataWrapper.Value)
 	buffer.WriteString(`"}`)
 	return buffer.Bytes(), nil
-}
+}*/
 
-type DataWrappers map[NamedType][]DataWrapper
+// Group together DataReferences
+type ReferenceGroups map[string][]DataReference
 
-func (data DataWrappers) MarshalJSON() ([]byte, error) {
+/*func (data DataWrappers) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString("{")
 	first := true
 	for namedType, dataWrappers := range data {
@@ -48,4 +56,4 @@ func (data DataWrappers) MarshalJSON() ([]byte, error) {
 	}
 	buffer.WriteString(`}`)
 	return buffer.Bytes(), nil
-}
+}*/

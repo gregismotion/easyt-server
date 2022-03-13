@@ -1,22 +1,23 @@
 package storage
 
 import (
-	"time"
+	//"time"
 	"errors"
 )
 
 var ErrFailedDeletion = errors.New("Failed deletion!")
 var ErrFailedSearch = errors.New("Failed search!")
+var ErrBadData = errors.New("Bad data!")
 
 type Storage interface {
 	GetCollectionReferences()               	    (*[]NameReference, error)
-	CreateCollectionByName(string, []string)   	    (*NameReference, error)
-	GetCollectionById(string) 			    (*Collection, error)
+	CreateCollectionByName(string)   	    (*NameReference, error)
+	GetReferenceCollectionById(string) 		    (*ReferenceCollection, error)
 	DeleteCollectionById(string)   			    (error)
 	
-	AddDataToCollectionById(string, time.Time, string, string) (*DataWrapper, error)
-	GetDataInCollectionById(string, string) 	    	   (*DataWrapper, error)
-	DeleteDataFromCollectionById(string, string) 		   (error)
+	AddDataPointsToCollectionById(string, []string, []string) (*[]DataReference, string, error)
+	GetDataInCollectionById(string, string, string) 	   (*DataPoint, error)
+	DeleteDataFromCollectionById(string, string, string) 		   (error)
 
 	GetNamedTypes()             (*[]NamedType, error)
 	GetNamedTypeById(string)    (*NamedType, error)

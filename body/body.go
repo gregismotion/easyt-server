@@ -2,7 +2,6 @@ package body
 
 type CollectionRequestBody struct {
 	Name 	     string `json:"name"`
-	NamedTypes []string `json:"named_types"`
 }
 
 type DataRequestBody struct {
