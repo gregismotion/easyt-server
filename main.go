@@ -1,20 +1,33 @@
-/// MAIN START ///
 package main
 
 import (
-	"git.freeself.one/thegergo02/easyt/basic"
+	//"git.freeself.one/thegergo02/easyt/basic"
 	"git.freeself.one/thegergo02/easyt/storage"
-	"git.freeself.one/thegergo02/easyt/body"
+	//"git.freeself.one/thegergo02/easyt/body"
 	"git.freeself.one/thegergo02/easyt/storage/backends/memory" // NOTE: temporary
 	
 	//"fmt"
 	"net/http"
 	//"time"
+	"log"
+	"context"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/middleware"
+	"github.com/swaggest/rest"
+	"github.com/swaggest/rest/chirouter"
+	"github.com/swaggest/rest/jsonschema"
+	"github.com/swaggest/rest/nethttp"
+	"github.com/swaggest/rest/openapi"
+	"github.com/swaggest/rest/request"
+	"github.com/swaggest/rest/response"
+	"github.com/swaggest/rest/response/gzip"
+	//"github.com/swaggest/swgui/v3cdn"
+	"github.com/swaggest/usecase"
+	//"github.com/swaggest/usecase/status"
 )
 
-func setupRouter() (r *gin.Engine) {
+/*func setupRouter() (r *gin.Engine) {
 	r = gin.Default()
 	v1 := r.Group("/api/v1") 
 	{
@@ -44,32 +57,75 @@ func setupRouter() (r *gin.Engine) {
 		}
 	}
 	return
+}*/
+
+func startRouter(host string, r *chirouter.Wrapper) error { 
+	log.Printf("Server started on %s", host) // BUG: gets printed even if error
+	return http.ListenAndServe(host, *r) 
 }
+
+func setupApiSchema() (apiSchema *openapi.Collector) {
+	apiSchema = new(openapi.Collector)
+	apiSchema.Reflector().SpecEns().Info.Title = "EasyTracker"
+	apiSchema.Reflector().SpecEns().Info.WithDescription("A service (with a REST API) to create data-points in an organized manner.")
+	apiSchema.Reflector().SpecEns().Info.Version = "v0.1.0"
+	return
+}
+func setupValidator(apiSchema *openapi.Collector) (validator jsonschema.Factory) {
+	validator = jsonschema.NewFactory(apiSchema, apiSchema)
+	return
+}
+func setupDecoder() (decoder *request.DecoderFactory) {
+	decoder = request.NewDecoderFactory()
+	decoder.ApplyDefaults = true
+	decoder.SetDecoderFunc(rest.ParamInPath, chirouter.PathToURLValues)
+	return
+}
+func setupRouter() (r *chirouter.Wrapper) {
+	r = chirouter.NewWrapper(chi.NewRouter())
+	apiSchema := setupApiSchema()
+	validator := setupValidator(apiSchema)
+	decoder := setupDecoder()
+	r.Use(
+		middleware.Recoverer,                          // Panic recovery.
+		nethttp.OpenAPIMiddleware(apiSchema),          // Documentation collector.
+		request.DecoderMiddleware(decoder),     // Request decoder setup.
+		request.ValidatorMiddleware(validator),		// Request validator setup.
+		response.EncoderMiddleware,                    	// Response encoder setup.
+		gzip.Middleware,                               // Response compression with support for direct gzip pass through.
+	)
+	r.Method(http.MethodGet, "/collections", nethttp.NewHandler(getCollectionReferences()))
+	return
+}
+
 
 var storageBackend storage.Storage
 func main() {
 	storageBackend = memory.New()
-	host := "localhost:8080"
-	setupRouter().Run(host)
-}
 
-type any interface{} // NOTE: remove in Go 1.18, default behaviour there
-func respond(c *gin.Context, response any, err error, customSuccessStatus ...int) {
-	if err == nil {
-		status := http.StatusOK
-		if customSuccessStatus != nil { status = customSuccessStatus[0] }
-		c.IndentedJSON(status, response)
-	} else {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	r := setupRouter()
+
+	host := "localhost:8080"
+	if err := startRouter(host, r); err != nil {
+		log.Fatal(err) 
 	}
 }
 
-func getCollections(c *gin.Context) {
-	references, err := storageBackend.GetCollectionReferences()
-	respond(c, &references, err)
+func getCollectionReferences() usecase.Interactor {
+	u := usecase.NewIOI(nil, new([]storage.NameReference), func(ctx context.Context, _, output interface{}) error {
+		var out = output.(*[]storage.NameReference)
+		references, err := storageBackend.GetCollectionReferences()
+		if references != nil {
+			*out = *references
+		}
+		return err
+	})
+	u.SetTags("Collection")
+
+	return u
 }
 
-func createCollection(c *gin.Context) {
+/*func createCollection(c *gin.Context) {
 	var body body.CollectionRequestBody
 	if err := c.BindJSON(&body); err == nil {
 		reference, err := storageBackend.CreateCollectionByName(body.Name)
@@ -202,4 +258,4 @@ func deleteNamedType(c *gin.Context) {
 
 func getBasicTypes(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, basic.GetBasicTypes())
-}
+}*/
