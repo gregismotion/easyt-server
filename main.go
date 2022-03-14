@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"git.freeself.one/thegergo02/easyt/basic"
+	"git.freeself.one/thegergo02/easyt/basic"
 	"git.freeself.one/thegergo02/easyt/storage"
 	//"git.freeself.one/thegergo02/easyt/body"
 	"git.freeself.one/thegergo02/easyt/storage/backends/memory" // NOTE: temporary
@@ -22,7 +22,7 @@ import (
 	"github.com/swaggest/rest/request"
 	"github.com/swaggest/rest/response"
 	"github.com/swaggest/rest/response/gzip"
-	//"github.com/swaggest/swgui/v3cdn"
+	"github.com/swaggest/swgui/v3cdn"
 	"github.com/swaggest/usecase"
 	//"github.com/swaggest/usecase/status"
 )
@@ -83,6 +83,7 @@ func setupDecoder() (decoder *request.DecoderFactory) {
 }
 func setupRouter() (r *chirouter.Wrapper) {
 	r = chirouter.NewWrapper(chi.NewRouter())
+
 	apiSchema := setupApiSchema()
 	validator := setupValidator(apiSchema)
 	decoder := setupDecoder()
@@ -94,7 +95,18 @@ func setupRouter() (r *chirouter.Wrapper) {
 		response.EncoderMiddleware,                    	// Response encoder setup.
 		gzip.Middleware,                               // Response compression with support for direct gzip pass through.
 	)
-	r.Method(http.MethodGet, "/collections", nethttp.NewHandler(getCollectionReferences()))
+
+	r.Method(http.MethodGet, "/docs/openapi.json", apiSchema)
+	r.Mount("/docs", v3cdn.NewHandler(apiSchema.Reflector().Spec.Info.Title,
+	"/docs/openapi.json", "/docs"))
+	
+	r.Route("/types", func (r chi.Router) {
+		r.Method(http.MethodGet, "/basic", nethttp.NewHandler(getBasicTypes()))
+	})
+
+	r.Route("/collections", func (r chi.Router) {
+		r.Method(http.MethodGet, "/", nethttp.NewHandler(getCollectionReferences()))
+	})
 	return
 }
 
@@ -111,7 +123,17 @@ func main() {
 	}
 }
 
-func getCollectionReferences() usecase.Interactor {
+func getBasicTypes() usecase.Interactor {
+	u := usecase.NewIOI(nil, new([]string), func(ctx context.Context, _, output interface{}) error {
+		var out = output.(*[]string)
+		*out = basic.GetBasicTypes()
+		return nil
+	})
+	u.SetTags("types")
+	return u
+}
+
+func getCollectionReferences() usecase.Interactor { // TODO: better docs
 	u := usecase.NewIOI(nil, new([]storage.NameReference), func(ctx context.Context, _, output interface{}) error {
 		var out = output.(*[]storage.NameReference)
 		references, err := storageBackend.GetCollectionReferences()
@@ -120,8 +142,7 @@ func getCollectionReferences() usecase.Interactor {
 		}
 		return err
 	})
-	u.SetTags("Collection")
-
+	u.SetTags("collections")
 	return u
 }
 
@@ -255,7 +276,4 @@ func deleteNamedType(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
 	}
 }
-
-func getBasicTypes(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, basic.GetBasicTypes())
-}*/
+*/
