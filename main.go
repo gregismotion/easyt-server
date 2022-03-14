@@ -24,7 +24,7 @@ import (
 	"github.com/swaggest/rest/response/gzip"
 	"github.com/swaggest/swgui/v3cdn"
 	"github.com/swaggest/usecase"
-	//"github.com/swaggest/usecase/status"
+	"github.com/swaggest/usecase/status"
 )
 
 /*func setupRouter() (r *gin.Engine) {
@@ -102,6 +102,8 @@ func setupRouter() (r *chirouter.Wrapper) {
 	
 	r.Route("/types", func (r chi.Router) {
 		r.Method(http.MethodGet, "/basic", nethttp.NewHandler(getBasicTypes()))
+		r.Method(http.MethodGet, "/named", nethttp.NewHandler(getNamedTypes()))
+		r.Method(http.MethodGet, "/named/{id}", nethttp.NewHandler(getNamedType()))
 	})
 
 	r.Route("/collections", func (r chi.Router) {
@@ -133,13 +135,43 @@ func getBasicTypes() usecase.Interactor {
 	return u
 }
 
+func getNamedTypes() usecase.Interactor {
+	u := usecase.NewIOI(nil, new([]storage.NamedType), func(ctx context.Context, _, output interface{}) error {
+		var out = output.(*[]storage.NamedType)
+		namedTypes, err := storageBackend.GetNamedTypes()
+		if namedTypes != nil { *out = *namedTypes }
+		return err
+	})
+	u.SetTags("types")
+	return u
+}
+
+func getNamedType() usecase.Interactor {
+	type getNamedTypeInput struct {
+		Id string `path:"id"`
+	}
+	u := usecase.NewIOI(new(getNamedTypeInput), new(storage.NamedType), func(ctx context.Context, input, output interface{}) error {
+		var (
+			in = input.(*getNamedTypeInput)
+			out = output.(*storage.NamedType)
+		)
+		namedType, err := storageBackend.GetNamedTypeById(in.Id)
+		if err != nil {
+			return status.Wrap(err, status.NotFound)
+		}
+		*out = *namedType
+		return nil
+	})
+	u.SetExpectedErrors(status.NotFound)
+	u.SetTags("types")
+	return u
+}
+
 func getCollectionReferences() usecase.Interactor { // TODO: better docs
 	u := usecase.NewIOI(nil, new([]storage.NameReference), func(ctx context.Context, _, output interface{}) error {
 		var out = output.(*[]storage.NameReference)
 		references, err := storageBackend.GetCollectionReferences()
-		if references != nil {
-			*out = *references
-		}
+		if references != nil { *out = *references }
 		return err
 	})
 	u.SetTags("collections")
@@ -242,12 +274,6 @@ func deleteData(c *gin.Context) {
 	}
 }
 
-
-func getNamedTypes(c *gin.Context) {
-	namedTypes, err := storageBackend.GetNamedTypes()
-	respond(c, &namedTypes, err)
-}
-
 func createNamedType(c *gin.Context) {
 	var body body.NamedTypeRequestBody
 	if err := c.BindJSON(&body); err == nil {
@@ -255,16 +281,6 @@ func createNamedType(c *gin.Context) {
 		respond(c, &namedType, err, http.StatusCreated)
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	}
-}
-
-func getNamedType(c *gin.Context) {
-	id := c.Param("id")
-	if id != "" {
-		namedType, err := storageBackend.GetNamedTypeById(id)
-		respond(c, &namedType, err)
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
 	}
 }
 
