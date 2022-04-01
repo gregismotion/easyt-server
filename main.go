@@ -105,6 +105,7 @@ func setupRouter() (r *chirouter.Wrapper) {
 		r.Method(http.MethodGet, "/named", nethttp.NewHandler(getNamedTypes()))
 		r.Method(http.MethodGet, "/named/{id}", nethttp.NewHandler(getNamedType()))
 		r.Method(http.MethodPost, "/named", nethttp.NewHandler(createNamedType()))
+		r.Method(http.MethodDelete, "/named/{id}", nethttp.NewHandler(deleteNamedType()))
 	})
 
 	r.Route("/collections", func (r chi.Router) {
@@ -187,7 +188,24 @@ func createNamedType() usecase.Interactor {
 		return nil
 	})
 	u.SetExpectedErrors(status.Internal)
-	u.SetTags("collections")
+	u.SetTags("types")
+	return u
+}
+
+func deleteNamedType() usecase.Interactor {
+	type deleteNamedTypeInput struct {
+		Id string `path:"id"`
+	}
+	u := usecase.NewIOI(new(deleteNamedTypeInput), nil, func(ctx context.Context, input, _ interface{}) error {
+		var in = input.(*deleteNamedTypeInput)
+		err := storageBackend.DeleteNamedTypeById(in.Id)
+		if err != nil {
+			return status.Wrap(err, status.NotFound)
+		}
+		return nil
+	})
+	u.SetExpectedErrors(status.NotFound)
+	u.SetTags("types")
 	return u
 }
 
@@ -314,15 +332,6 @@ func deleteData(c *gin.Context) {
 		} else {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
 		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
-
-func deleteNamedType(c *gin.Context) {
-	id := c.Param("id")
-	if id != "" {
-		respond(c, "ok", storageBackend.DeleteNamedTypeById(id))
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
 	}
