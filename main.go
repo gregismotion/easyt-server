@@ -110,6 +110,7 @@ func setupRouter() (r *chirouter.Wrapper) {
 	r.Route("/collections", func (r chi.Router) {
 		r.Method(http.MethodGet, "/", nethttp.NewHandler(getCollectionReferences()))
 		r.Method(http.MethodPost, "/", nethttp.NewHandler(createCollection()))
+		r.Method(http.MethodGet, "/{id}", nethttp.NewHandler(getCollection()))
 	})
 	return
 }
@@ -222,17 +223,26 @@ func createCollection() usecase.Interactor {
 	return u
 }
 
-/*
-func getCollection(c *gin.Context) { // TODO: add return limit of data
-	id := c.Param("id")
-	if id != "" {
-		collection, err := storageBackend.GetReferenceCollectionById(id)
-		respond(c, &collection, err)
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID passed!"})
+func getCollection() usecase.Interactor { // TODO: add return limit of data
+	type getCollectionInput struct {
+		Id string `path:"id"`
 	}
+	u := usecase.NewIOI(new(getCollectionInput), new(storage.ReferenceCollection), func(ctx context.Context, input, output interface{}) error {
+		var (
+			in = input.(*getCollectionInput)
+			out = output.(*storage.ReferenceCollection)
+		)
+		collection, err := storageBackend.GetReferenceCollectionById(in.Id)
+		if err != nil { return status.Wrap(err, status.NotFound) }
+		if collection != nil { *out = *collection }
+		return err
+	})
+	u.SetExpectedErrors(status.NotFound)
+	u.SetTags("collections")
+	return u
 }
 
+/*
 func deleteCollection(c *gin.Context) {
 	id := c.Param("id")
 	if id != "" {
