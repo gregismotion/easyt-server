@@ -104,10 +104,12 @@ func setupRouter() (r *chirouter.Wrapper) {
 		r.Method(http.MethodGet, "/basic", nethttp.NewHandler(getBasicTypes()))
 		r.Method(http.MethodGet, "/named", nethttp.NewHandler(getNamedTypes()))
 		r.Method(http.MethodGet, "/named/{id}", nethttp.NewHandler(getNamedType()))
+		r.Method(http.MethodPost, "/named", nethttp.NewHandler(createNamedType()))
 	})
 
 	r.Route("/collections", func (r chi.Router) {
 		r.Method(http.MethodGet, "/", nethttp.NewHandler(getCollectionReferences()))
+		r.Method(http.MethodPost, "/", nethttp.NewHandler(createCollection()))
 	})
 	return
 }
@@ -166,8 +168,29 @@ func getNamedType() usecase.Interactor {
 	u.SetTags("types")
 	return u
 }
+func createNamedType() usecase.Interactor {
+	type createNamedTypeInput struct {
+		Name string `json:"name" required:"true"`
+		BasicType string `json:"type" required:"true"`
+	}
+	u := usecase.NewIOI(new(createNamedTypeInput), new(storage.NamedType), func(ctx context.Context, input, output interface{}) error {
+		var (
+			in = input.(*createNamedTypeInput)
+			out = output.(*storage.NamedType)
+		)
+		namedType, err := storageBackend.CreateNamedType(in.Name, in.BasicType)
+		if err != nil {
+			return status.Wrap(err, status.Internal)
+		}
+		*out = *namedType
+		return nil
+	})
+	u.SetExpectedErrors(status.Internal)
+	u.SetTags("collections")
+	return u
+}
 
-func getCollectionReferences() usecase.Interactor { // TODO: better docs
+func getCollectionReferences() usecase.Interactor {
 	u := usecase.NewIOI(nil, new([]storage.NameReference), func(ctx context.Context, _, output interface{}) error {
 		var out = output.(*[]storage.NameReference)
 		references, err := storageBackend.GetCollectionReferences()
@@ -178,16 +201,28 @@ func getCollectionReferences() usecase.Interactor { // TODO: better docs
 	return u
 }
 
-/*func createCollection(c *gin.Context) {
-	var body body.CollectionRequestBody
-	if err := c.BindJSON(&body); err == nil {
-		reference, err := storageBackend.CreateCollectionByName(body.Name)
-		respond(c, &reference, err, http.StatusCreated)
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func createCollection() usecase.Interactor {
+	type createCollectionInput struct {
+		Name string `json:"name" required:"true"`
 	}
+	u := usecase.NewIOI(new(createCollectionInput), new(storage.NameReference), func(ctx context.Context, input, output interface{}) error {
+		var (
+			in = input.(*createCollectionInput)
+			out = output.(*storage.NameReference)
+		)
+		reference, err := storageBackend.CreateCollectionByName(in.Name)
+		if err != nil {
+			return status.Wrap(err, status.Internal)
+		}
+		*out = *reference
+		return nil
+	})
+	u.SetExpectedErrors(status.Internal)
+	u.SetTags("collections")
+	return u
 }
 
+/*
 func getCollection(c *gin.Context) { // TODO: add return limit of data
 	id := c.Param("id")
 	if id != "" {
@@ -271,16 +306,6 @@ func deleteData(c *gin.Context) {
 		}
 	} else {
 		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
-	}
-}
-
-func createNamedType(c *gin.Context) {
-	var body body.NamedTypeRequestBody
-	if err := c.BindJSON(&body); err == nil {
-		namedType, err := storageBackend.CreateNamedType(body.Name, body.BasicType)
-		respond(c, &namedType, err, http.StatusCreated)
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
 
