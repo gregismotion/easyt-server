@@ -58,7 +58,7 @@ func (memory MemoryStorage) GetReferenceCollectionById(id string) (*storage.Refe
 		for groupId, dataGroup := range collection.Data {
 			dataReferences := make([]storage.DataReference, len(dataGroup))
 			for i, dataPoint := range dataGroup {
-				dataReferences[i] = storage.DataReference { Id: dataPoint.Id, NamedType: dataPoint.NamedType }
+				dataReferences[i] = *dataPoint.ToReference()
 			}
 			referenceGroups[groupId] = dataReferences
 		}
