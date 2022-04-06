@@ -114,6 +114,7 @@ func setupRouter() (r *chirouter.Wrapper) {
 		r.Method(http.MethodGet, "/{id}", nethttp.NewHandler(getCollection()))
 		r.Method(http.MethodDelete, "/{id}", nethttp.NewHandler(deleteCollection()))
 		r.Method(http.MethodPost, "/{id}", nethttp.NewHandler(addData()))
+		r.Method(http.MethodGet, "/{colId}/{groupId}/{dataId}", nethttp.NewHandler(getData()))
 	})
 	return
 }
@@ -312,27 +313,29 @@ func addData() usecase.Interactor {
 	return u
 }
 
-/*
-func getData(c *gin.Context) {
-	colId := c.Param("colId")
-	if colId != "" {
-		dataId := c.Param("dataId")
-		if dataId != "" {
-			groupId := c.Param("groupId")
-			if groupId != "" {
-				data, err := storageBackend.GetDataInCollectionById(colId, groupId, dataId)
-				respond(c, &data, err)
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No group ID specified!"})
-			}
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No collection ID specified!"})
+func getData() usecase.Interactor {
+	type getDataInput struct {
+		ColId string `path:"colId"`
+		GroupId string `path:"groupId"`
+		DataId string `path:"dataId"`
 	}
+	u := usecase.NewIOI(new(getDataInput), new(storage.DataPoint), func(ctx context.Context, input, output interface{}) error {
+		var (
+			in = input.(*getDataInput)
+			out = output.(*storage.DataPoint)
+		)
+		data, err := storageBackend.GetDataInCollectionById(in.ColId, in.GroupId, in.DataId)
+		if err != nil {
+			return status.Wrap(err, status.Internal)
+		}
+		*out = *data
+		return nil
+	})
+	u.SetTags("data")
+	return u
 }
 
+/*
 func deleteData(c *gin.Context) {
 	colId := c.Param("colId")
 	if colId != "" {
