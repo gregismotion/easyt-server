@@ -8,7 +8,7 @@ import (
 	
 	//"fmt"
 	"net/http"
-	//"time"
+	"time"
 	"log"
 	"context"
 
@@ -88,12 +88,12 @@ func setupRouter() (r *chirouter.Wrapper) {
 	validator := setupValidator(apiSchema)
 	decoder := setupDecoder()
 	r.Use(
-		middleware.Recoverer,                          // Panic recovery.
-		nethttp.OpenAPIMiddleware(apiSchema),          // Documentation collector.
-		request.DecoderMiddleware(decoder),     // Request decoder setup.
-		request.ValidatorMiddleware(validator),		// Request validator setup.
-		response.EncoderMiddleware,                    	// Response encoder setup.
-		gzip.Middleware,                               // Response compression with support for direct gzip pass through.
+		middleware.Recoverer,                   
+		nethttp.OpenAPIMiddleware(apiSchema),   
+		request.DecoderMiddleware(decoder),     
+		request.ValidatorMiddleware(validator),	
+		response.EncoderMiddleware,             
+		gzip.Middleware,                        
 	)
 
 	r.Method(http.MethodGet, "/docs/openapi.json", apiSchema)
@@ -112,6 +112,8 @@ func setupRouter() (r *chirouter.Wrapper) {
 		r.Method(http.MethodGet, "/", nethttp.NewHandler(getCollectionReferences()))
 		r.Method(http.MethodPost, "/", nethttp.NewHandler(createCollection()))
 		r.Method(http.MethodGet, "/{id}", nethttp.NewHandler(getCollection()))
+		r.Method(http.MethodDelete, "/{id}", nethttp.NewHandler(deleteCollection()))
+		r.Method(http.MethodPost, "/{id}", nethttp.NewHandler(addData()))
 	})
 	return
 }
@@ -260,44 +262,57 @@ func getCollection() usecase.Interactor { // TODO: add return limit of data
 	return u
 }
 
-/*
-func deleteCollection(c *gin.Context) {
-	id := c.Param("id")
-	if id != "" {
-		respond(c, "ok", storageBackend.DeleteCollectionById(id))	
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
+func deleteCollection() usecase.Interactor {
+	type deleteCollectionInput struct {
+		Id string `path:"id"`
 	}
-}
-
-func addData(c *gin.Context) {
-	var dataPoints []body.DataRequestBody
-	id := c.Param("colId")
-	if id != "" {
-		if err := c.BindJSON(&dataPoints); err == nil {
-			//time := time.Now() // TODO: get time from body
-			namedTypeIds := make([]string, len(dataPoints))
-			values := make([]string, len(dataPoints))
-			for i, dataPoint := range dataPoints { // TODO: move this to another func
-				namedTypeIds[i] = dataPoint.NamedType
-				values[i] = dataPoint.Value
-			}
-			data, groupId, err := storageBackend.AddDataPointsToCollectionById(id, namedTypeIds, values)
-			var dataGroup storage.ReferenceGroups
-			if data != nil {
-				dataGroup = storage.ReferenceGroups {
-					groupId: *data,
-				}
-			}
-			respond(c, dataGroup, err, http.StatusCreated)
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	u := usecase.NewIOI(new(deleteCollectionInput), nil, func(ctx context.Context, input, _ interface{}) error {
+		var in = input.(*deleteCollectionInput)
+		err := storageBackend.DeleteCollectionById(in.Id)
+		if err != nil {
+			return status.Wrap(err, status.NotFound)
 		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No ID specified!"})
-	}
+		return nil
+	})
+	u.SetExpectedErrors(status.NotFound)
+	u.SetTags("collections")
+	return u
 }
 
+func addData() usecase.Interactor {
+	type dataPointInput struct {
+		NamedType string `json:"named_type"`
+		Time time.Time `json:"time"`
+		Value string `json:"value"`
+	}
+	type addDataInput struct {
+		ColId string `path:"id"`
+		DataPointInputs []dataPointInput `json:"data_points"`
+	}
+	u := usecase.NewIOI(new(addDataInput), new(storage.ReferenceGroups), func(ctx context.Context, input, output interface{}) error {
+		var (
+			in = input.(*addDataInput)
+			out = output.(*storage.ReferenceGroups)
+		)
+		dataPoints := make([]storage.DataPoint, len(in.DataPointInputs))
+		for i, dataPointInput := range in.DataPointInputs {
+			dataPoints[i] = storage.DataPoint {
+			NamedType: storage.NamedType { Id: dataPointInput.NamedType },
+			Time: dataPointInput.Time,
+			Value: dataPointInput.Value }
+		}
+		referenceGroups, err := storageBackend.AddDataPointsToCollectionById(in.ColId, dataPoints)
+		if err != nil {
+			return status.Wrap(err, status.Internal)
+		}
+		*out = *referenceGroups
+		return nil
+	})
+	u.SetTags("data")
+	return u
+}
+
+/*
 func getData(c *gin.Context) {
 	colId := c.Param("colId")
 	if colId != "" {

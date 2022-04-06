@@ -82,20 +82,17 @@ func (memory *MemoryStorage) DeleteCollectionById(id string) (err error) {
 	return
 }
 
-func (memory *MemoryStorage) AddDataPointsToCollectionById(colId string, namedTypeIds, values []string) (*[]storage.DataReference, string, error) {
+func (memory *MemoryStorage) AddDataPointsToCollectionById(colId string, dataPoints []storage.DataPoint) (*storage.ReferenceGroups, error) {
 	groupId := uuid.New().String()
-	if len(namedTypeIds) == len(values) {
-		references := make([]storage.DataReference, len(namedTypeIds))
-		var err error
-		for i, namedTypeId := range namedTypeIds {
-			var reference *storage.DataReference
-			reference, err = (*memory).addDataPointToCollectionById(colId, groupId, namedTypeId, values[i])
-			if err != nil { return nil, groupId, err } else { references[i] = *reference }
-		}
-		return &references, groupId, nil
-	} else {
-		return nil, groupId, fmt.Errorf("add data: namedTypeIds and values arrays don't have matching lengths!: %w", storage.ErrBadData)
+	references := make([]storage.DataReference, len(dataPoints))
+	var err error
+	for i, dataPoint := range dataPoints {
+		var reference *storage.DataReference
+		reference, err = (*memory).addDataPointToCollectionById(colId, groupId, dataPoint)
+		if err != nil { return nil, err } else { references[i] = *reference }
 	}
+	groupReferences := storage.ReferenceGroups { groupId: references }
+	return &groupReferences, nil
 }
 
 func (memory MemoryStorage) GetDataInCollectionById(colId, groupId, dataId string) (*storage.DataPoint, error) {
@@ -197,20 +194,17 @@ func (memory MemoryStorage) getCollectionPointerById(id string) (*Collection, bo
 	return nil, false
 }
 
-func (memory *MemoryStorage) addDataPointToCollectionById(colId, groupId, namedTypeId, value string) (*storage.DataReference, error) {
+func (memory *MemoryStorage) addDataPointToCollectionById(colId, groupId string, dataPoint storage.DataPoint) (*storage.DataReference, error) {
 	collection, ok := memory.getCollectionPointerById(colId)
-	namedType, err := memory.GetNamedTypeById(namedTypeId)
+	namedType, err := memory.GetNamedTypeById(dataPoint.NamedType.Id)
 	if ok {
 		if err == nil {
-			dataPoint := storage.DataPoint {
-				Id: uuid.New().String(),
-				NamedType: *namedType,
-				Value: value,
-			}
+			dataPoint.Id = uuid.New().String()
+			dataPoint.NamedType = *namedType
 			(*collection).Data[groupId] = append((*collection).Data[groupId], dataPoint)
-			return &(storage.DataReference { Id: dataPoint.Id, NamedType: dataPoint.NamedType }), nil
+			return dataPoint.ToReference(), nil
 		} else {
-			return nil, fmt.Errorf("add data: namedtype: %q: %w", namedTypeId, storage.ErrFailedSearch)
+			return nil, fmt.Errorf("add data: namedtype: %q: %w", dataPoint.NamedType.Id, storage.ErrFailedSearch)
 		}
 	} else {
 		return nil, fmt.Errorf("add data: collection: %q: %w", colId, storage.ErrFailedSearch)

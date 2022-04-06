@@ -15,7 +15,7 @@ type Storage interface {
 	GetReferenceCollectionById(string) 		    (*ReferenceCollection, error)
 	DeleteCollectionById(string)   			    (error)
 	
-	AddDataPointsToCollectionById(string, []string, []string) (*[]DataReference, string, error)
+	AddDataPointsToCollectionById(string, []DataPoint) (*ReferenceGroups, error)
 	GetDataInCollectionById(string, string, string) 	   (*DataPoint, error)
 	DeleteDataFromCollectionById(string, string, string) 		   (error)
 
