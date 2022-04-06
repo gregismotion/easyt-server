@@ -115,6 +115,7 @@ func setupRouter() (r *chirouter.Wrapper) {
 		r.Method(http.MethodDelete, "/{id}", nethttp.NewHandler(deleteCollection()))
 		r.Method(http.MethodPost, "/{id}", nethttp.NewHandler(addData()))
 		r.Method(http.MethodGet, "/{colId}/{groupId}/{dataId}", nethttp.NewHandler(getData()))
+		r.Method(http.MethodDelete, "/{colId}/{groupId}/{dataId}", nethttp.NewHandler(deleteData()))
 	})
 	return
 }
@@ -335,23 +336,20 @@ func getData() usecase.Interactor {
 	return u
 }
 
-/*
-func deleteData(c *gin.Context) {
-	colId := c.Param("colId")
-	if colId != "" {
-		dataId := c.Param("dataId")
-		if dataId != "" {
-			groupId := c.Param("groupId")
-			if groupId != "" {
-				respond(c, "ok", storageBackend.DeleteDataFromCollectionById(colId, groupId, dataId))
-			} else {
-				c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No group ID specified!"})
-			}
-		} else {
-			c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No data ID specified!"})
-		}
-	} else {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": "No name specified!"})
+func deleteData() usecase.Interactor {
+	type deleteDataInput struct {
+		ColId string `path:"colId"`
+		GroupId string `path:"groupId"`
+		DataId string `path:"dataId"`
 	}
+	u := usecase.NewIOI(new(deleteDataInput), nil, func(ctx context.Context, input, _ interface{}) error {
+		var in = input.(*deleteDataInput)
+		err := storageBackend.DeleteDataFromCollectionById(in.ColId, in.GroupId, in.DataId)
+		if err != nil {
+			return status.Wrap(err, status.Internal)
+		}
+		return nil
+	})
+	u.SetTags("data")
+	return u
 }
-*/
