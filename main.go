@@ -3,17 +3,18 @@ package main
 import (
 	"git.freeself.one/thegergo02/easyt/basic"
 	"git.freeself.one/thegergo02/easyt/storage"
+
 	//"git.freeself.one/thegergo02/easyt/body"
 	"git.freeself.one/thegergo02/easyt/storage/backends/memory" // NOTE: temporary
-	
+
 	//"fmt"
+	"context"
+	"log"
 	"net/http"
 	"time"
-	"log"
-	"context"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
 	"github.com/swaggest/rest"
 	"github.com/swaggest/rest/chirouter"
 	"github.com/swaggest/rest/jsonschema"
@@ -29,7 +30,7 @@ import (
 
 /*func setupRouter() (r *gin.Engine) {
 	r = gin.Default()
-	v1 := r.Group("/api/v1") 
+	v1 := r.Group("/api/v1")
 	{
 		col := v1.Group("/collections")
 		{
@@ -59,9 +60,9 @@ import (
 	return
 }*/
 
-func startRouter(host string, r *chirouter.Wrapper) error { 
+func startRouter(host string, r *chirouter.Wrapper) error {
 	log.Printf("Server started on %s", host) // BUG: gets printed even if error
-	return http.ListenAndServe(host, *r) 
+	return http.ListenAndServe(host, *r)
 }
 
 func setupApiSchema() (apiSchema *openapi.Collector) {
@@ -88,19 +89,19 @@ func setupRouter() (r *chirouter.Wrapper) {
 	validator := setupValidator(apiSchema)
 	decoder := setupDecoder()
 	r.Use(
-		middleware.Recoverer,                   
-		nethttp.OpenAPIMiddleware(apiSchema),   
-		request.DecoderMiddleware(decoder),     
-		request.ValidatorMiddleware(validator),	
-		response.EncoderMiddleware,             
-		gzip.Middleware,                        
+		middleware.Recoverer,
+		nethttp.OpenAPIMiddleware(apiSchema),
+		request.DecoderMiddleware(decoder),
+		request.ValidatorMiddleware(validator),
+		response.EncoderMiddleware,
+		gzip.Middleware,
 	)
 
 	r.Method(http.MethodGet, "/docs/openapi.json", apiSchema)
 	r.Mount("/docs", v3cdn.NewHandler(apiSchema.Reflector().Spec.Info.Title,
-	"/docs/openapi.json", "/docs"))
-	
-	r.Route("/types", func (r chi.Router) {
+		"/docs/openapi.json", "/docs"))
+
+	r.Route("/types", func(r chi.Router) {
 		r.Method(http.MethodGet, "/basic", nethttp.NewHandler(getBasicTypes()))
 		r.Method(http.MethodGet, "/named", nethttp.NewHandler(getNamedTypes()))
 		r.Method(http.MethodGet, "/named/{id}", nethttp.NewHandler(getNamedType()))
@@ -108,7 +109,7 @@ func setupRouter() (r *chirouter.Wrapper) {
 		r.Method(http.MethodDelete, "/named/{id}", nethttp.NewHandler(deleteNamedType()))
 	})
 
-	r.Route("/collections", func (r chi.Router) {
+	r.Route("/collections", func(r chi.Router) {
 		r.Method(http.MethodGet, "/", nethttp.NewHandler(getCollectionReferences()))
 		r.Method(http.MethodPost, "/", nethttp.NewHandler(createCollection()))
 		r.Method(http.MethodGet, "/{id}", nethttp.NewHandler(getCollection()))
@@ -120,8 +121,8 @@ func setupRouter() (r *chirouter.Wrapper) {
 	return
 }
 
-
 var storageBackend storage.Storage
+
 func main() {
 	storageBackend = memory.New()
 
@@ -129,7 +130,7 @@ func main() {
 
 	host := "localhost:8080"
 	if err := startRouter(host, r); err != nil {
-		log.Fatal(err) 
+		log.Fatal(err)
 	}
 }
 
@@ -147,7 +148,9 @@ func getNamedTypes() usecase.Interactor {
 	u := usecase.NewIOI(nil, new([]storage.NamedType), func(ctx context.Context, _, output interface{}) error {
 		var out = output.(*[]storage.NamedType)
 		namedTypes, err := storageBackend.GetNamedTypes()
-		if namedTypes != nil { *out = *namedTypes }
+		if namedTypes != nil {
+			*out = *namedTypes
+		}
 		return err
 	})
 	u.SetTags("types")
@@ -160,7 +163,7 @@ func getNamedType() usecase.Interactor {
 	}
 	u := usecase.NewIOI(new(getNamedTypeInput), new(storage.NamedType), func(ctx context.Context, input, output interface{}) error {
 		var (
-			in = input.(*getNamedTypeInput)
+			in  = input.(*getNamedTypeInput)
 			out = output.(*storage.NamedType)
 		)
 		namedType, err := storageBackend.GetNamedTypeById(in.Id)
@@ -176,12 +179,12 @@ func getNamedType() usecase.Interactor {
 }
 func createNamedType() usecase.Interactor {
 	type createNamedTypeInput struct {
-		Name string `json:"name" required:"true"`
+		Name      string `json:"name" required:"true"`
 		BasicType string `json:"type" required:"true"`
 	}
 	u := usecase.NewIOI(new(createNamedTypeInput), new(storage.NamedType), func(ctx context.Context, input, output interface{}) error {
 		var (
-			in = input.(*createNamedTypeInput)
+			in  = input.(*createNamedTypeInput)
 			out = output.(*storage.NamedType)
 		)
 		namedType, err := storageBackend.CreateNamedType(in.Name, in.BasicType)
@@ -214,10 +217,19 @@ func deleteNamedType() usecase.Interactor {
 }
 
 func getCollectionReferences() usecase.Interactor {
-	u := usecase.NewIOI(nil, new([]storage.NameReference), func(ctx context.Context, _, output interface{}) error {
-		var out = output.(*[]storage.NameReference)
-		references, err := storageBackend.GetCollectionReferences()
-		if references != nil { *out = *references }
+	type getCollectionReferencesInput struct {
+		Id   string `query:"last_id" default:""`
+		Size int    `query:"size" default:"10"`
+	}
+	u := usecase.NewIOI(new(getCollectionReferencesInput), new([]storage.NameReference), func(ctx context.Context, input, output interface{}) error {
+		var (
+			in  = input.(*getCollectionReferencesInput)
+			out = output.(*[]storage.NameReference)
+		)
+		references, err := storageBackend.GetCollectionReferences(in.Size, in.Id)
+		if references != nil {
+			*out = *references
+		}
 		return err
 	})
 	u.SetTags("collections")
@@ -230,7 +242,7 @@ func createCollection() usecase.Interactor {
 	}
 	u := usecase.NewIOI(new(createCollectionInput), new(storage.NameReference), func(ctx context.Context, input, output interface{}) error {
 		var (
-			in = input.(*createCollectionInput)
+			in  = input.(*createCollectionInput)
 			out = output.(*storage.NameReference)
 		)
 		reference, err := storageBackend.CreateCollectionByName(in.Name)
@@ -251,12 +263,16 @@ func getCollection() usecase.Interactor { // TODO: add return limit of data
 	}
 	u := usecase.NewIOI(new(getCollectionInput), new(storage.ReferenceCollection), func(ctx context.Context, input, output interface{}) error {
 		var (
-			in = input.(*getCollectionInput)
+			in  = input.(*getCollectionInput)
 			out = output.(*storage.ReferenceCollection)
 		)
 		collection, err := storageBackend.GetReferenceCollectionById(in.Id)
-		if err != nil { return status.Wrap(err, status.NotFound) }
-		if collection != nil { *out = *collection }
+		if err != nil {
+			return status.Wrap(err, status.NotFound)
+		}
+		if collection != nil {
+			*out = *collection
+		}
 		return err
 	})
 	u.SetExpectedErrors(status.NotFound)
@@ -283,25 +299,25 @@ func deleteCollection() usecase.Interactor {
 
 func addData() usecase.Interactor {
 	type dataPointInput struct {
-		NamedType string `json:"named_type"`
-		Time time.Time `json:"time"`
-		Value string `json:"value"`
+		NamedType string    `json:"named_type"`
+		Time      time.Time `json:"time"`
+		Value     string    `json:"value"`
 	}
 	type addDataInput struct {
-		ColId string `path:"id"`
+		ColId           string           `path:"id"`
 		DataPointInputs []dataPointInput `json:"data_points"`
 	}
 	u := usecase.NewIOI(new(addDataInput), new(storage.ReferenceGroups), func(ctx context.Context, input, output interface{}) error {
 		var (
-			in = input.(*addDataInput)
+			in  = input.(*addDataInput)
 			out = output.(*storage.ReferenceGroups)
 		)
 		dataPoints := make([]storage.DataPoint, len(in.DataPointInputs))
 		for i, dataPointInput := range in.DataPointInputs {
-			dataPoints[i] = storage.DataPoint {
-			NamedType: storage.NamedType { Id: dataPointInput.NamedType },
-			Time: dataPointInput.Time,
-			Value: dataPointInput.Value }
+			dataPoints[i] = storage.DataPoint{
+				NamedType: storage.NamedType{Id: dataPointInput.NamedType},
+				Time:      dataPointInput.Time,
+				Value:     dataPointInput.Value}
 		}
 		referenceGroups, err := storageBackend.AddDataPointsToCollectionById(in.ColId, dataPoints)
 		if err != nil {
@@ -316,13 +332,13 @@ func addData() usecase.Interactor {
 
 func getData() usecase.Interactor {
 	type getDataInput struct {
-		ColId string `path:"colId"`
+		ColId   string `path:"colId"`
 		GroupId string `path:"groupId"`
-		DataId string `path:"dataId"`
+		DataId  string `path:"dataId"`
 	}
 	u := usecase.NewIOI(new(getDataInput), new(storage.DataPoint), func(ctx context.Context, input, output interface{}) error {
 		var (
-			in = input.(*getDataInput)
+			in  = input.(*getDataInput)
 			out = output.(*storage.DataPoint)
 		)
 		data, err := storageBackend.GetDataInCollectionById(in.ColId, in.GroupId, in.DataId)
@@ -338,9 +354,9 @@ func getData() usecase.Interactor {
 
 func deleteData() usecase.Interactor {
 	type deleteDataInput struct {
-		ColId string `path:"colId"`
+		ColId   string `path:"colId"`
 		GroupId string `path:"groupId"`
-		DataId string `path:"dataId"`
+		DataId  string `path:"dataId"`
 	}
 	u := usecase.NewIOI(new(deleteDataInput), nil, func(ctx context.Context, input, _ interface{}) error {
 		var in = input.(*deleteDataInput)

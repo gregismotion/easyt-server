@@ -60,13 +60,21 @@ func New() *MemoryStorage {
 	})
 }
 
-func (memory MemoryStorage) GetCollectionReferences() (*[]storage.NameReference, error) {
-	var references []storage.NameReference
-	for _, collection := range memory.collections {
-		references = append(references, storage.NameReference{Id: collection.Id, Name: collection.Name})
+func (memory MemoryStorage) GetCollectionReferences(size int, lastId string) (*[]storage.NameReference, error) {
+	var references []storage.NameReference = make([]storage.NameReference, 0)
+	var throughLast = false
+	if len(lastId) == 0 {
+		throughLast = true
 	}
-	if references == nil {
-		references = make([]storage.NameReference, 0)
+	for _, collection := range memory.collections {
+		if throughLast {
+			references = append(references, storage.NameReference{Id: collection.Id, Name: collection.Name})
+		} else if collection.Id == lastId {
+			throughLast = true
+		}
+		if len(references) >= size {
+			break
+		}
 	}
 	return &references, nil
 }
