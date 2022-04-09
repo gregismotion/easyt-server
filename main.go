@@ -127,7 +127,7 @@ func getNamedTypes() usecase.Interactor {
 
 func getNamedType() usecase.Interactor {
 	type getNamedTypeInput struct {
-		Id string `path:"id"`
+		Id string `path:"id" example:"237e9877-e79b-12d4-a765-321741963000"`
 	}
 	u := usecase.NewIOI(new(getNamedTypeInput), new(storage.NamedType), func(ctx context.Context, input, output interface{}) error {
 		var (
@@ -147,8 +147,8 @@ func getNamedType() usecase.Interactor {
 }
 func createNamedType() usecase.Interactor {
 	type createNamedTypeInput struct {
-		Name      string `json:"name" required:"true"`
-		BasicType string `json:"type" required:"true"`
+		Name      string `json:"name" required:"true" example:"weight"`
+		BasicType string `json:"type" required:"true" example:"num"`
 	}
 	u := usecase.NewIOI(new(createNamedTypeInput), new(storage.NamedType), func(ctx context.Context, input, output interface{}) error {
 		var (
@@ -169,7 +169,7 @@ func createNamedType() usecase.Interactor {
 
 func deleteNamedType() usecase.Interactor {
 	type deleteNamedTypeInput struct {
-		Id string `path:"id"`
+		Id string `path:"id" example:"237e9877-e79b-12d4-a765-321741963000"`
 	}
 	u := usecase.NewIOI(new(deleteNamedTypeInput), nil, func(ctx context.Context, input, _ interface{}) error {
 		var in = input.(*deleteNamedTypeInput)
@@ -186,8 +186,8 @@ func deleteNamedType() usecase.Interactor {
 
 func getCollectionReferences() usecase.Interactor {
 	type getCollectionReferencesInput struct {
-		Id   string `query:"last_id" default:""`
-		Size int    `query:"size" default:"10"`
+		Id   string `query:"last_id" default:"" example:"237e9877-e79b-12d4-a765-321741963000"`
+		Size int    `query:"size" default:"10" example:"10"`
 	}
 	u := usecase.NewIOI(new(getCollectionReferencesInput), new([]storage.NameReference), func(ctx context.Context, input, output interface{}) error {
 		var (
@@ -206,7 +206,7 @@ func getCollectionReferences() usecase.Interactor {
 
 func createCollection() usecase.Interactor {
 	type createCollectionInput struct {
-		Name string `json:"name" required:"true"`
+		Name string `json:"name" required:"true" example:"my_body"`
 	}
 	u := usecase.NewIOI(new(createCollectionInput), new(storage.NameReference), func(ctx context.Context, input, output interface{}) error {
 		var (
@@ -227,7 +227,7 @@ func createCollection() usecase.Interactor {
 
 func getCollection() usecase.Interactor { // TODO: add return limit of data
 	type getCollectionInput struct {
-		Id string `path:"id"`
+		Id string `path:"id" example:"237e9877-e79b-12d4-a765-321741963000"`
 	}
 	u := usecase.NewIOI(new(getCollectionInput), new(storage.ReferenceCollection), func(ctx context.Context, input, output interface{}) error {
 		var (
@@ -250,7 +250,7 @@ func getCollection() usecase.Interactor { // TODO: add return limit of data
 
 func deleteCollection() usecase.Interactor {
 	type deleteCollectionInput struct {
-		Id string `path:"id"`
+		Id string `path:"id" example:"237e9877-e79b-12d4-a765-321741963000"`
 	}
 	u := usecase.NewIOI(new(deleteCollectionInput), nil, func(ctx context.Context, input, _ interface{}) error {
 		var in = input.(*deleteCollectionInput)
@@ -267,12 +267,12 @@ func deleteCollection() usecase.Interactor {
 
 func addData() usecase.Interactor {
 	type dataPointInput struct {
-		NamedType string    `json:"named_type"`
+		NamedType string    `json:"named_type" example:"weight"`
 		Time      time.Time `json:"time"`
-		Value     string    `json:"value"`
+		Value     string    `json:"value" example:"69"`
 	}
 	type addDataInput struct {
-		ColId           string           `path:"id"`
+		ColId           string           `path:"id" example:"237e9877-e79b-12d4-a765-321741963000"`
 		DataPointInputs []dataPointInput `json:"data_points"`
 	}
 	u := usecase.NewIOI(new(addDataInput), new(storage.ReferenceGroups), func(ctx context.Context, input, output interface{}) error {
@@ -300,9 +300,9 @@ func addData() usecase.Interactor {
 
 func getData() usecase.Interactor {
 	type getDataInput struct {
-		ColId   string `path:"colId"`
-		GroupId string `path:"groupId"`
-		DataId  string `path:"dataId"`
+		ColId   string `path:"colId" example:"237e9877-e79b-12d4-a765-321741963000"`
+		GroupId string `path:"groupId" example:"237e9877-e79b-12d4-a765-321741963000"`
+		DataId  string `path:"dataId" example:"237e9877-e79b-12d4-a765-321741963000"`
 	}
 	u := usecase.NewIOI(new(getDataInput), new(storage.DataPoint), func(ctx context.Context, input, output interface{}) error {
 		var (
@@ -322,9 +322,9 @@ func getData() usecase.Interactor {
 
 func deleteData() usecase.Interactor {
 	type deleteDataInput struct {
-		ColId   string `path:"colId"`
-		GroupId string `path:"groupId"`
-		DataId  string `path:"dataId"`
+		ColId   string `path:"colId" example:"237e9877-e79b-12d4-a765-321741963000"`
+		GroupId string `path:"groupId" example:"237e9877-e79b-12d4-a765-321741963000"`
+		DataId  string `path:"dataId" example:"237e9877-e79b-12d4-a765-321741963000"`
 	}
 	u := usecase.NewIOI(new(deleteDataInput), nil, func(ctx context.Context, input, _ interface{}) error {
 		var in = input.(*deleteDataInput)
