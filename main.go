@@ -186,15 +186,15 @@ func deleteNamedType() usecase.Interactor {
 
 func getCollectionReferences() usecase.Interactor {
 	type getCollectionReferencesInput struct {
-		Id   string `query:"last_id" default:"" example:"237e9877-e79b-12d4-a765-321741963000"`
-		Size int    `query:"size" default:"10" example:"10"`
+		LastId string `query:"last_id" default:"" example:"237e9877-e79b-12d4-a765-321741963000"`
+		Size   int    `query:"size" default:"10" example:"10"`
 	}
 	u := usecase.NewIOI(new(getCollectionReferencesInput), new([]storage.NameReference), func(ctx context.Context, input, output interface{}) error {
 		var (
 			in  = input.(*getCollectionReferencesInput)
 			out = output.(*[]storage.NameReference)
 		)
-		references, err := storageBackend.GetCollectionReferences(in.Size, in.Id)
+		references, err := storageBackend.GetCollectionReferences(in.Size, in.LastId)
 		if references != nil {
 			*out = *references
 		}
@@ -227,14 +227,16 @@ func createCollection() usecase.Interactor {
 
 func getCollection() usecase.Interactor { // TODO: add return limit of data
 	type getCollectionInput struct {
-		Id string `path:"id" example:"237e9877-e79b-12d4-a765-321741963000"`
+		Id     string `path:"id" example:"237e9877-e79b-12d4-a765-321741963000"`
+		LastId string `query:"last_id" default:"" example:"237e9877-e79b-12d4-a765-321741963000"`
+		Size   int    `query:"size" default:"10" example:"10"`
 	}
 	u := usecase.NewIOI(new(getCollectionInput), new(storage.ReferenceCollection), func(ctx context.Context, input, output interface{}) error {
 		var (
 			in  = input.(*getCollectionInput)
 			out = output.(*storage.ReferenceCollection)
 		)
-		collection, err := storageBackend.GetReferenceCollectionById(in.Id)
+		collection, err := storageBackend.GetReferenceCollectionById(in.Id, in.Size, in.LastId)
 		if err != nil {
 			return status.Wrap(err, status.NotFound)
 		}
@@ -267,7 +269,7 @@ func deleteCollection() usecase.Interactor {
 
 func addData() usecase.Interactor {
 	type dataPointInput struct {
-		NamedType string    `json:"named_type" example:"weight"`
+		NamedType string    `json:"named_type" example:"237e9877-e79b-12d4-a765-321741963000"`
 		Time      time.Time `json:"time"`
 		Value     string    `json:"value" example:"69"`
 	}

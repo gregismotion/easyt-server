@@ -89,19 +89,30 @@ func (memory *MemoryStorage) CreateCollectionByName(name string) (*storage.NameR
 	return &(storage.NameReference{Id: collection.Id, Name: collection.Name}), nil
 }
 
-func (memory MemoryStorage) GetReferenceCollectionById(id string) (*storage.ReferenceCollection, error) {
+func (memory MemoryStorage) GetReferenceCollectionById(id string, size int, lastId string) (*storage.ReferenceCollection, error) {
 	collectionPointer, ok := memory.getCollectionPointerById(id)
 	if !ok {
 		return nil, fmt.Errorf("get collection: %q: %v", id, storage.ErrFailedSearch)
 	} else {
 		collection := *collectionPointer
 		referenceGroups := make(storage.ReferenceGroups)
+		var throughLast = false
+		if len(lastId) == 0 {
+			throughLast = true
+		}
 		for groupId, dataGroup := range collection.Data {
-			dataReferences := make([]storage.DataReference, len(dataGroup))
-			for i, dataPoint := range dataGroup {
-				dataReferences[i] = *dataPoint.ToReference()
+			if throughLast {
+				dataReferences := make([]storage.DataReference, len(dataGroup))
+				for i, dataPoint := range dataGroup {
+					dataReferences[i] = *dataPoint.ToReference()
+				}
+				referenceGroups[groupId] = dataReferences
+			} else if groupId == lastId {
+				throughLast = true
 			}
-			referenceGroups[groupId] = dataReferences
+			if len(referenceGroups) >= size {
+				break
+			}
 		}
 		return &(storage.ReferenceCollection{Id: collection.Id, Name: collection.Name, Data: referenceGroups}), nil
 	}

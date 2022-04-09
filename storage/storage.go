@@ -12,7 +12,7 @@ var ErrBadData = errors.New("Bad data!")
 type Storage interface {
 	GetCollectionReferences(int, string) (*[]NameReference, error)
 	CreateCollectionByName(string) (*NameReference, error)
-	GetReferenceCollectionById(string) (*ReferenceCollection, error)
+	GetReferenceCollectionById(string, int, string) (*ReferenceCollection, error)
 	DeleteCollectionById(string) error
 
 	AddDataPointsToCollectionById(string, []DataPoint) (*ReferenceGroups, error)
