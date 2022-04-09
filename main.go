@@ -28,38 +28,6 @@ import (
 	"github.com/swaggest/usecase/status"
 )
 
-/*func setupRouter() (r *gin.Engine) {
-	r = gin.Default()
-	v1 := r.Group("/api/v1")
-	{
-		col := v1.Group("/collections")
-		{
-			col.GET("/", getCollections)
-			col.POST("/", createCollection)
-			col.GET("/:id", getCollection)
-			col.DELETE("/:id", deleteCollection)
-			data := col.Group("/data")
-			{
-				data.GET("/:colId/:groupId/:dataId", getData)
-				data.POST("/:colId", addData)
-				data.DELETE("/:colId/:groupId/:dataId", deleteData)
-			}
-		}
-		typ := v1.Group("/types")
-		{
-			named := typ.Group("/named")
-			{
-				named.GET("/", getNamedTypes)
-				named.POST("/", createNamedType)
-				named.GET("/:id", getNamedType)
-				named.DELETE("/:id", deleteNamedType)
-			}
-			typ.GET("/basic", getBasicTypes)
-		}
-	}
-	return
-}*/
-
 func startRouter(host string, r *chirouter.Wrapper) error {
 	log.Printf("Server started on %s", host) // BUG: gets printed even if error
 	return http.ListenAndServe(host, *r)
