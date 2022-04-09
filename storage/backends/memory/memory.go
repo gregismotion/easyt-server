@@ -1,9 +1,9 @@
 package memory
 
 import (
-	"git.freeself.one/thegergo02/easyt/storage"
 	"git.freeself.one/thegergo02/easyt/basic"
-	
+	"git.freeself.one/thegergo02/easyt/storage"
+
 	"fmt"
 	//"time"
 
@@ -15,12 +15,21 @@ import (
 // Group together DataPoints
 type DataGroups map[string][]storage.DataPoint
 type Collection struct {
-	Id string 
+	Id   string
 	Name string
 	Data DataGroups
 }
 
-func (collection *Collection) DeleteData(groupId, dataId string) (error) {
+func (collection *Collection) GetData(groupId, dataId string) (*storage.DataPoint, error) {
+	for _, data := range (*collection).Data[groupId] {
+		if data.Id == dataId {
+			return &data, nil
+		}
+	}
+	return nil, fmt.Errorf("get data: %q: %w", dataId, storage.ErrFailedSearch)
+}
+
+func (collection *Collection) DeleteData(groupId, dataId string) error {
 	i := 0
 	found := false
 	for _, elem := range (*collection).Data[groupId] {
@@ -34,44 +43,49 @@ func (collection *Collection) DeleteData(groupId, dataId string) (error) {
 	(*collection).Data[groupId] = (*collection).Data[groupId][:i]
 	if !found {
 		return fmt.Errorf("delete data: %q: %w", dataId, storage.ErrFailedDeletion)
-	} else { return nil }
+	} else {
+		return nil
+	}
 }
 
 type MemoryStorage struct {
 	collections []Collection
-	namedTypes []storage.NamedType
+	namedTypes  []storage.NamedType
 }
 
 func New() *MemoryStorage {
-	return &(
-		MemoryStorage {
-			collections: make([]Collection, 0),
-			namedTypes: make([]storage.NamedType, 0),
-		})
+	return &(MemoryStorage{
+		collections: make([]Collection, 0),
+		namedTypes:  make([]storage.NamedType, 0),
+	})
 }
 
 func (memory MemoryStorage) GetCollectionReferences() (*[]storage.NameReference, error) {
 	var references []storage.NameReference
 	for _, collection := range memory.collections {
-		references = append(references, storage.NameReference { Id: collection.Id, Name: collection.Name })
+		references = append(references, storage.NameReference{Id: collection.Id, Name: collection.Name})
 	}
-	if references == nil { references = make([]storage.NameReference, 0) }
+	if references == nil {
+		references = make([]storage.NameReference, 0)
+	}
 	return &references, nil
 }
 
 func (memory *MemoryStorage) CreateCollectionByName(name string) (*storage.NameReference, error) {
-	collection := Collection {
-		Id: uuid.New().String(),
+	collection := Collection{
+		Id:   uuid.New().String(),
 		Name: name,
 		Data: make(DataGroups),
 	}
 	memory.collections = append(memory.collections, collection)
-	return &(storage.NameReference { Id: collection.Id, Name: collection.Name }), nil
+	return &(storage.NameReference{Id: collection.Id, Name: collection.Name}), nil
 }
 
 func (memory MemoryStorage) GetReferenceCollectionById(id string) (*storage.ReferenceCollection, error) {
 	collectionPointer, ok := memory.getCollectionPointerById(id)
-	if !ok { return nil, fmt.Errorf("get collection: %q: %v", id, storage.ErrFailedSearch) } else {
+	if !ok {
+		return nil, fmt.Errorf("get collection: %q: %v", id, storage.ErrFailedSearch)
+	} else {
 		collection := *collectionPointer
 		referenceGroups := make(storage.ReferenceGroups)
 		for groupId, dataGroup := range collection.Data {
@@ -81,7 +95,7 @@ func (memory MemoryStorage) GetReferenceCollectionById(id string) (*storage.Refe
 			}
 			referenceGroups[groupId] = dataReferences
 		}
-		return &(storage.ReferenceCollection { Id: collection.Id, Name: collection.Name, Data: referenceGroups }), nil
+		return &(storage.ReferenceCollection{Id: collection.Id, Name: collection.Name, Data: referenceGroups}), nil
 	}
 }
 
@@ -96,11 +110,14 @@ func (memory *MemoryStorage) DeleteCollectionById(id string) (err error) {
 			ok = true
 		}
 	}
-	if !ok { err = fmt.Errorf("delete collection: %q: %w", id, storage.ErrFailedDeletion) }
+	if !ok {
+		err = fmt.Errorf("delete collection: %q: %w", id, storage.ErrFailedDeletion)
+	}
 	memory.collections = memory.collections[:i]
 	return
 }
 
+// TODO: should follow the same access format as other methods on collection.
 func (memory *MemoryStorage) AddDataPointsToCollectionById(colId string, dataPoints []storage.DataPoint) (*storage.ReferenceGroups, error) {
 	groupId := uuid.New().String()
 	references := make([]storage.DataReference, len(dataPoints))
@@ -108,24 +125,27 @@ func (memory *MemoryStorage) AddDataPointsToCollectionById(colId string, dataPoi
 	for i, dataPoint := range dataPoints {
 		var reference *storage.DataReference
 		reference, err = (*memory).addDataPointToCollectionById(colId, groupId, dataPoint)
-		if err != nil { return nil, err } else { references[i] = *reference }
+		if err != nil {
+			return nil, err
+		} else {
+			references[i] = *reference
+		}
 	}
-	groupReferences := storage.ReferenceGroups { groupId: references }
+	groupReferences := storage.ReferenceGroups{groupId: references}
 	return &groupReferences, nil
 }
 
 func (memory MemoryStorage) GetDataInCollectionById(colId, groupId, dataId string) (*storage.DataPoint, error) {
 	collection, ok := memory.getCollectionPointerById(colId)
-	if !ok { return nil, fmt.Errorf("get data: collection: %q: %w", colId, storage.ErrFailedSearch) }
-	for _, data := range (*collection).Data[groupId] {
-		if data.Id == dataId {
-			return &data, nil
-		}
-	}	
-	return nil, fmt.Errorf("get data: %q: %w", dataId, storage.ErrFailedSearch)
+	if ok {
+		data, err := collection.GetData(groupId, dataId)
+		return data, err
+	} else {
+		return nil, fmt.Errorf("get data: collection: %q: %w", colId, storage.ErrFailedSearch)
+	}
 }
 
-func (memory *MemoryStorage) DeleteDataFromCollectionById(colId, groupId, dataId string) (error) {
+func (memory *MemoryStorage) DeleteDataFromCollectionById(colId, groupId, dataId string) error {
 	collection, ok := memory.getCollectionPointerById(colId)
 	if ok {
 		return collection.DeleteData(groupId, dataId)
@@ -133,7 +153,6 @@ func (memory *MemoryStorage) DeleteDataFromCollectionById(colId, groupId, dataId
 		return fmt.Errorf("delete data: collection: %q: %w", colId, storage.ErrFailedSearch)
 	}
 }
-
 
 func (memory MemoryStorage) GetNamedTypes() (*[]storage.NamedType, error) {
 	return &(memory.namedTypes), nil
@@ -151,8 +170,8 @@ func (memory MemoryStorage) GetNamedTypeById(id string) (*storage.NamedType, err
 func (memory *MemoryStorage) CreateNamedType(name string, basicName string) (*storage.NamedType, error) {
 	basicType, ok := basic.StrToBasicType(basicName)
 	if ok {
-		namedType := storage.NamedType {
-			Id: uuid.New().String(),
+		namedType := storage.NamedType{
+			Id:   uuid.New().String(),
 			Name: name,
 			Type: basicType,
 		}
@@ -175,10 +194,11 @@ func (memory *MemoryStorage) DeleteNamedTypeById(id string) (err error) {
 		}
 	}
 	memory.namedTypes = memory.namedTypes[:i]
-	if !ok { err = fmt.Errorf("delete namedtype: %q: %w", id, storage.ErrFailedDeletion) }
+	if !ok {
+		err = fmt.Errorf("delete namedtype: %q: %w", id, storage.ErrFailedDeletion)
+	}
 	return
 }
-
 
 func (memory MemoryStorage) getNamedTypesByIds(ids []string) (namedTypes []storage.NamedType, ok bool) {
 	for _, id := range ids {
