@@ -10,12 +10,31 @@ import (
 	"github.com/google/uuid"
 )
 
+// FIXME: if a group becomes empty, it will not get deleted!
+
 // Group together DataPoints
 type DataGroups map[string][]storage.DataPoint
 type Collection struct {
 	Id string 
 	Name string
 	Data DataGroups
+}
+
+func (collection *Collection) DeleteData(groupId, dataId string) (error) {
+	i := 0
+	found := false
+	for _, elem := range (*collection).Data[groupId] {
+		if elem.Id != dataId {
+			(*collection).Data[groupId][i] = elem
+			i++
+		} else {
+			found = true
+		}
+	}
+	(*collection).Data[groupId] = (*collection).Data[groupId][:i]
+	if !found {
+		return fmt.Errorf("delete data: %q: %w", dataId, storage.ErrFailedDeletion)
+	} else { return nil }
 }
 
 type MemoryStorage struct {
@@ -107,25 +126,12 @@ func (memory MemoryStorage) GetDataInCollectionById(colId, groupId, dataId strin
 }
 
 func (memory *MemoryStorage) DeleteDataFromCollectionById(colId, groupId, dataId string) (error) {
-	found := false
 	collection, ok := memory.getCollectionPointerById(colId)
 	if ok {
-		i := 0
-		for _, elem := range (*collection).Data[groupId] {
-			if elem.Id != dataId {
-				(*collection).Data[groupId][i] = elem
-				i++
-			} else {
-				found = true
-			}
-		}
-		(*collection).Data[groupId] = (*collection).Data[groupId][:i]
+		return collection.DeleteData(groupId, dataId)
 	} else {
 		return fmt.Errorf("delete data: collection: %q: %w", colId, storage.ErrFailedSearch)
 	}
-	if !found {
-		return fmt.Errorf("delete data: %q: %w", dataId, storage.ErrFailedDeletion)
-	} else { return nil }
 }
 
 
